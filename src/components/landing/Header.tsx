@@ -3,15 +3,33 @@
 import { useState } from "react";
 import Link from "next/link";
 
-const navLinks = [
-  { label: "Categories", href: "#categories", internal: false },
-  { label: "Why Us", href: "#why-us", internal: false },
-  { label: "How It Works", href: "#how-it-works", internal: false },
+type HeaderUser = {
+  firstName?: string;
+  lastName?: string;
+  avatarUrl?: string;
+};
+
+type NavLink = {
+  label: string;
+  href: string;
+  internal: boolean;
+};
+
+type HeaderProps = {
+  user?: HeaderUser;
+  onLogout?: () => void;
+  links?: NavLink[];
+};
+
+const defaultLinks: NavLink[] = [
+  { label: "Categories", href: "/#categories", internal: true },
+  { label: "Why Us", href: "/#why-us", internal: true },
+  { label: "How It Works", href: "/#how-it-works", internal: true },
   { label: "Vendors", href: "/vendors", internal: true },
-  { label: "FAQ", href: "#faq", internal: false },
+  { label: "FAQ", href: "/#faq", internal: true },
 ];
 
-export function Header() {
+export function Header({ user, onLogout, links = defaultLinks }: HeaderProps) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -19,17 +37,17 @@ export function Header() {
       <div className="pointer-events-none absolute inset-0 border-b border-slate-200 bg-white/90 backdrop-blur" />
       <div className="relative h-1 bg-amber-400" />
       <div className="relative mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
-        <a href="#" className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-sm font-bold text-white">
             e
           </span>
           <span className="text-lg font-semibold text-slate-900">
             Event<span className="text-blue-600">Connect</span>
           </span>
-        </a>
+        </Link>
 
         <nav className="hidden items-center gap-8 md:flex">
-          {navLinks.map((link) =>
+          {links.map((link: NavLink) =>
             link.internal ? (
               <Link
                 key={link.label}
@@ -51,18 +69,30 @@ export function Header() {
         </nav>
 
         <div className="hidden items-center gap-4 md:flex">
-          <Link
-            href="/signin"
-            className="text-sm font-semibold text-slate-700 transition-colors hover:text-slate-900"
-          >
-            Sign In
-          </Link>
-          <Link
-            href="/signup"
-            className="rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
-          >
-            Sign Up
-          </Link>
+          {user ? (
+            <button
+              type="button"
+              onClick={onLogout}
+              className="rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+            >
+              Logout
+            </button>
+          ) : (
+            <>
+              <Link
+                href="/signin"
+                className="text-sm font-semibold text-slate-700 transition-colors hover:text-slate-900"
+              >
+                Sign In
+              </Link>
+              <Link
+                href="/signup"
+                className="rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+              >
+                Sign Up
+              </Link>
+            </>
+          )}
         </div>
 
         <button
@@ -97,7 +127,7 @@ export function Header() {
       >
         <div className="overflow-hidden">
           <nav className="flex flex-col gap-1 border-t border-slate-200 px-6 py-4">
-            {navLinks.map((link) =>
+            {links.map((link: NavLink) =>
               link.internal ? (
                 <Link
                   key={link.label}
@@ -120,20 +150,35 @@ export function Header() {
             )}
 
             <div className="mt-3 flex flex-col gap-3 border-t border-slate-200 pt-4">
-              <Link
-                href="/signin"
-                onClick={() => setOpen(false)}
-                className="rounded-lg px-3 py-2.5 text-center text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-              >
-                Sign In
-              </Link>
-              <Link
-                href="/signup"
-                onClick={() => setOpen(false)}
-                className="rounded-full bg-blue-600 px-5 py-2.5 text-center text-sm font-semibold text-white transition-colors hover:bg-blue-700"
-              >
-                Sign Up
-              </Link>
+              {user ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    onLogout?.();
+                  }}
+                  className="rounded-lg px-3 py-2.5 text-center text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                >
+                  Logout
+                </button>
+              ) : (
+                <>
+                  <Link
+                    href="/signin"
+                    onClick={() => setOpen(false)}
+                    className="rounded-lg px-3 py-2.5 text-center text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                  >
+                    Sign In
+                  </Link>
+                  <Link
+                    href="/signup"
+                    onClick={() => setOpen(false)}
+                    className="rounded-full bg-blue-600 px-5 py-2.5 text-center text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                  >
+                    Sign Up
+                  </Link>
+                </>
+              )}
             </div>
           </nav>
         </div>

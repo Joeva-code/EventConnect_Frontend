@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { UserIcon, Briefcase } from "./icons";
 
 const options = [
@@ -18,9 +17,12 @@ const options = [
   },
 ] as const;
 
-export function AccountTypeSelect() {
-  const [selected, setSelected] = useState<"planner" | "vendor">("planner");
+type AccountTypeSelectProps = {
+  selected: "planner" | "vendor";
+  onChange: (value: "planner" | "vendor") => void;
+};
 
+export function AccountTypeSelect({ selected, onChange }: AccountTypeSelectProps) {
   return (
     <div>
       <span className="mb-1.5 block text-sm font-medium text-slate-700">
@@ -33,7 +35,7 @@ export function AccountTypeSelect() {
             <button
               key={option.value}
               type="button"
-              onClick={() => setSelected(option.value)}
+              onClick={() => onChange(option.value)}
               aria-pressed={isSelected}
               className={`flex flex-col items-start gap-2 rounded-xl border p-4 text-left transition-colors ${
                 isSelected

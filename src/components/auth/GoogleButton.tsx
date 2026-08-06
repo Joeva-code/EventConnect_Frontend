@@ -1,16 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Google } from "./icons";
+import { GOOGLE_AUTH_URL } from "@/lib/api";
 
 export function GoogleButton({ text = "Continue with Google" }: { text?: string }) {
-  const router = useRouter();
   const [signingIn, setSigningIn] = useState(false);
 
   function handleClick() {
     setSigningIn(true);
-    setTimeout(() => router.push("/welcome"), 800);
+    window.location.assign(GOOGLE_AUTH_URL);
   }
 
   return (

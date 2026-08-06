@@ -54,7 +54,7 @@ export function Categories() {
           </p>
         </div>
         <a
-          href="#categories"
+          href="/signin"
           className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-blue-600 hover:text-blue-700"
         >
           View All Categories

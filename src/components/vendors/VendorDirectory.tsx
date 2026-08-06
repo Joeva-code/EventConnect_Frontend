@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search } from "@/components/landing/icons";
-import { categories, vendors, type Category } from "@/data/vendors";
+import { categories, vendors as staticVendors, type Category, type Vendor as StaticVendor } from "@/data/vendors";
+import { getAuthToken, getVendors } from "@/lib/api";
 import { VendorCard } from "./VendorCard";
 
 type Filter = "All" | Category;
@@ -10,10 +11,38 @@ type Filter = "All" | Category;
 export function VendorDirectory() {
   const [filter, setFilter] = useState<Filter>("All");
   const [query, setQuery] = useState("");
+  const [vendorList, setVendorList] = useState<StaticVendor[]>(staticVendors);
+  const [backendError, setBackendError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadVendors() {
+      const token = getAuthToken();
+      if (!token) {
+        setBackendError("Sign in to load live vendor listings from the backend.");
+        setVendorList(staticVendors);
+        setIsLoading(false);
+        return;
+      }
+
+      const result = await getVendors(token);
+      if (result.error) {
+        setBackendError(result.error);
+        setVendorList(staticVendors);
+      } else if (result.data) {
+        setVendorList(result.data as StaticVendor[]);
+      } else {
+        setVendorList(staticVendors);
+      }
+      setIsLoading(false);
+    }
+
+    loadVendors();
+  }, []);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return vendors.filter((vendor) => {
+    return vendorList.filter((vendor) => {
       const matchesCategory = filter === "All" || vendor.category === filter;
       const matchesQuery =
         q.length === 0 ||
@@ -21,7 +50,7 @@ export function VendorDirectory() {
         vendor.location.toLowerCase().includes(q);
       return matchesCategory && matchesQuery;
     });
-  }, [filter, query]);
+  }, [filter, query, vendorList]);
 
   return (
     <div>
@@ -40,9 +69,15 @@ export function VendorDirectory() {
         </div>
 
         <p className="text-sm text-slate-500">
-          {filtered.length} vendor{filtered.length === 1 ? "" : "s"} found
+          {isLoading ? "Loading vendors..." : `${filtered.length} vendor${filtered.length === 1 ? "" : "s"} found`}
         </p>
       </div>
+
+      {backendError ? (
+        <div className="mt-4 rounded-2xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-900">
+          {backendError}
+        </div>
+      ) : null}
 
       <div className="mt-6 flex flex-wrap gap-2">
         {(["All", ...categories] as Filter[]).map((option) => (
