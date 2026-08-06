@@ -1,9 +1,9 @@
 "use client";
 
-import { useId, useState } from "react";
+import { InputHTMLAttributes, useId, useState } from "react";
 import { Lock, Eye, EyeOff } from "./icons";
 
-type PasswordFieldProps = {
+type PasswordFieldProps = InputHTMLAttributes<HTMLInputElement> & {
   label: string;
   name: string;
   autoComplete?: string;
@@ -15,6 +15,7 @@ export function PasswordField({
   name,
   autoComplete = "new-password",
   placeholder = "Enter your password",
+  ...props
 }: PasswordFieldProps) {
   const [visible, setVisible] = useState(false);
   const id = useId();
@@ -39,6 +40,7 @@ export function PasswordField({
           autoComplete={autoComplete}
           placeholder={placeholder}
           className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-11 text-slate-900 placeholder:text-slate-400 transition-colors focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/10"
+          {...props}
         />
         <button
           type="button"

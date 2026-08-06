@@ -39,8 +39,8 @@ const socials = [Globe, At, Message, Mail];
 export function Footer() {
   return (
     <footer className="bg-blue-600 text-white">
-      <div className="mx-auto max-w-7xl px-6 py-16">
-        <div className="grid grid-cols-1 gap-12 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mx-auto max-w-7xl px-6 py-10 md:py-12">
+        <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <div className="flex items-center gap-2">
               <span className="h-8 w-8 rounded-lg bg-white" />
