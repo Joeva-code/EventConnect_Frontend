@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { clearAuth, getAuthUser, saveAuthUser, type User, updateProfile, uploadProfileImage } from "@/lib/api";
+import { clearAuth, getAuthUser, saveAuthUser, type User, updateProfile } from "@/lib/api";
 import { Footer } from "@/components/landing/Footer";
 import { Header } from "@/components/landing/Header";
 import { VendorCard } from "@/components/vendors/VendorCard";
@@ -306,21 +306,10 @@ export default function DashboardClient() {
     setSaveError(null);
 
     try {
-      let avatarUrl = user.avatar ?? null;
-      if (selectedFile) {
-        const upload = await uploadProfileImage(selectedFile);
-        if (upload.error || !upload.data) {
-          setSaveError(upload.error ?? "Image upload failed");
-          setIsSaving(false);
-          return;
-        }
-        avatarUrl = upload.data.avatar;
-      }
-
+      // Profile image uploads are disabled. Only update textual profile fields.
       const payload: Partial<User> = {
         firstName: profileForm.firstName,
         lastName: profileForm.lastName,
-        avatar: avatarUrl ?? undefined,
       };
 
       const res = await updateProfile(payload);

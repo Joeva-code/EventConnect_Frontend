@@ -43,11 +43,15 @@ export type Vendor = {
 };
 
 async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<ApiResult<T>> {
+  // Default to sending credentials (cookies) so deployments using HttpOnly cookies work.
+  // Allow callers to override via `init.credentials`.
+  const headers = (init.body instanceof FormData)
+    ? (init.headers ?? {})
+    : ({ "Content-Type": "application/json", ...(init.headers ?? {}) });
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(init.headers ?? {}),
-    },
+    headers,
+    credentials: (init.credentials ?? "include"),
     ...init,
   });
 
@@ -272,68 +276,7 @@ export async function updateProfile(data: Partial<User>, token?: string) {
 }
 
 export async function uploadProfileImage(file: File, token?: string) {
-  const t = token ?? getAuthToken();
-  const authHeaders: Record<string, string> = {};
-  if (t) authHeaders.Authorization = `Bearer ${t}`;
-
-  const candidatePaths = [
-    "/api/v1/profile/avatar",
-    "/api/v1/profile/upload",
-    "/api/v1/user/avatar",
-    "/api/v1/users/avatar",
-    "/api/v1/user/upload",
-    "/api/v1/users/upload",
-    "/api/upload/avatar",
-    "/api/uploads/avatar",
-    "/api/user/avatar",
-    "/api/auth/avatar",
-    "/api/avatar",
-    "/api/avatar/upload",
-    "/api/upload",
-    "/api/uploads",
-    "/api/media/avatar",
-    "/api/media/upload",
-  ];
-  const fieldNames = ["avatar", "image", "file", "photo", "profilePicture"];
-
-  let lastErr = "";
-  for (const p of candidatePaths) {
-    for (const fieldName of fieldNames) {
-      try {
-        const form = new FormData();
-        form.append(fieldName, file);
-
-        const res = await fetch(`${API_BASE_URL}${p}`, {
-          method: "POST",
-          headers: authHeaders,
-          body: form,
-        });
-
-        const text = await res.text();
-        let json: any = null;
-        try {
-          json = text ? JSON.parse(text) : null;
-        } catch {
-          json = null;
-        }
-
-        if (res.status === 404) {
-          lastErr = `404 on ${p} with field ${fieldName}`;
-          continue;
-        }
-
-        if (!res.ok) {
-          lastErr = json?.message ?? res.statusText ?? `Status ${res.status}`;
-          continue;
-        }
-
-        return { data: json as { avatar: string }, error: null } as ApiResult<{ avatar: string }>;
-      } catch (err: any) {
-        lastErr = String(err?.message ?? err);
-        continue;
-      }
-    }
-  }
-
-  return { data: null, error: `Upload failed. Tried: ${candidatePaths.join(", ")}. Last error: ${lastErr}` } as ApiResult<{ avatar: string }>;
+  // Image uploads are disabled in the frontend. Return a safe no-op result
+  // so callers that still reference this function will not fail.
+  return { data: null, error: "Profile image uploads are disabled" } as ApiResult<{ avatar: string }>;
 }
