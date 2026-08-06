@@ -1,4 +1,6 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://horizon-circle.onrender.com";
+// Browser requests go through our Next.js route handler. This keeps the browser
+// same-origin on Vercel and avoids relying on the backend's CORS configuration.
+const API_BASE_URL = "/api/backend";
 
 export type ApiError = {
   message?: string;
@@ -49,11 +51,19 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<ApiR
     ? (init.headers ?? {})
     : ({ "Content-Type": "application/json", ...(init.headers ?? {}) });
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers,
-    credentials: (init.credentials ?? "include"),
-    ...init,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      headers,
+      credentials: (init.credentials ?? "include"),
+      ...init,
+    });
+  } catch {
+    return {
+      data: null,
+      error: "Unable to reach the server. Please try again in a moment.",
+    };
+  }
 
   const text = await response.text();
   let json: unknown = null;
