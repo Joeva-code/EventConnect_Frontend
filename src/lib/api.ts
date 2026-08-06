@@ -280,3 +280,29 @@ export async function uploadProfileImage(file: File, token?: string) {
   // so callers that still reference this function will not fail.
   return { data: null, error: "Profile image uploads are disabled" } as ApiResult<{ avatar: string }>;
 }
+
+export async function getCurrentUser(token?: string) {
+  const headers: Record<string, string> = {};
+  const t = token ?? getAuthToken();
+  if (t) headers.Authorization = `Bearer ${t}`;
+
+  const candidatePaths = [
+    "/api/auth/me",
+    "/api/me",
+    "/api/user/me",
+    "/api/user",
+    "/api/auth/user",
+    "/api/profile",
+    "/api/v1/me",
+    "/api/v1/user",
+  ];
+
+  for (const p of candidatePaths) {
+    const res = await apiRequest<User>(p, { method: "GET", headers });
+    if (!res.error && res.data) {
+      return res;
+    }
+  }
+
+  return { data: null, error: "Could not fetch current user" } as ApiResult<User>;
+}

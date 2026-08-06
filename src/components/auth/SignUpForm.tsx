@@ -9,7 +9,7 @@ import { AccountTypeSelect } from "./AccountTypeSelect";
 import { OrDivider } from "./OrDivider";
 import { GoogleButton } from "./GoogleButton";
 import { Mail, UserIcon } from "./icons";
-import { getAuthUser, login, saveAuthToken, saveAuthUser, signup } from "@/lib/api";
+import { getAuthUser, login, saveAuthToken, saveAuthUser, signup, getCurrentUser } from "@/lib/api";
 
 export function SignUpForm() {
   const router = useRouter();
@@ -72,6 +72,14 @@ export function SignUpForm() {
       if (user) {
         saveAuthUser(user, true);
       }
+      router.push("/dashboard");
+      return;
+    }
+
+    // Try fetching current user in case backend uses cookies instead of tokens
+    const me = await getCurrentUser();
+    if (!me.error && me.data) {
+      saveAuthUser(me.data, true);
       router.push("/dashboard");
       return;
     }

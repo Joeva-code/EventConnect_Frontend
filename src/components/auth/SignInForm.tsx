@@ -9,7 +9,7 @@ import { OrDivider } from "./OrDivider";
 import { GoogleButton } from "./GoogleButton";
 import { Mail } from "./icons";
 import { signInContent } from "@/data/signin";
-import { getAuthUser, login, saveAuthToken, saveAuthUser } from "@/lib/api";
+import { getAuthUser, login, saveAuthToken, saveAuthUser, getCurrentUser } from "@/lib/api";
 
 export function SignInForm() {
   const router = useRouter();
@@ -43,7 +43,18 @@ export function SignInForm() {
       return;
     }
 
-    setError(result.data?.message ?? "Unable to sign in. Please try again.");
+    // If backend uses cookie-based auth and doesn't return a token,
+    // try fetching the current user (with credentials included).
+    if (!result.error) {
+      const me = await getCurrentUser();
+      if (!me.error && me.data) {
+        saveAuthUser(me.data, remember);
+        router.push("/dashboard");
+        return;
+      }
+    }
+
+    setError(result.error ?? result.data?.message ?? "Unable to sign in. Please try again.");
   }
 
   return (
