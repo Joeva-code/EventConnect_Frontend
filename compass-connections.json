@@ -1,0 +1,24 @@
+{
+  "type": "Compass Connections",
+  "version": {
+    "$numberInt": "1"
+  },
+  "connections": [
+    {
+      "id": "c5be4271-6f26-41ae-85b0-2aacb24b7c9c",
+      "lastUsed": {
+        "$date": {
+          "$numberLong": "1786098247401"
+        }
+      },
+      "favorite": {
+        "name": "cuddlemate.vf2ecpv.mongodb.net"
+      },
+      "savedConnectionType": "recent",
+      "connectionOptions": {
+        "connectionString": "mongodb+srv://cuddlematte_dev@cuddlemate.vf2ecpv.mongodb.net/testnew?appName=Cuddlemate",
+        "oidc": {}
+      }
+    }
+  ]
+}

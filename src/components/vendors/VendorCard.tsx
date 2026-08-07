@@ -2,12 +2,17 @@ import Image from "next/image";
 import { MapPin, Star } from "@/components/landing/icons";
 import type { Vendor } from "@/data/vendors";
 
+const FALLBACK_VENDOR_IMAGE =
+  "https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=800&q=80";
+
 export function VendorCard({
   vendor,
   compact = false,
+  onBook,
 }: {
   vendor: Vendor;
   compact?: boolean;
+  onBook?: (vendor: Vendor) => void;
 }) {
   return (
     <div
@@ -17,7 +22,7 @@ export function VendorCard({
     >
       <div className={`relative w-full overflow-hidden ${compact ? "aspect-[3/2]" : "aspect-[4/3]"}`}>
         <Image
-          src={vendor.image}
+          src={vendor.image || FALLBACK_VENDOR_IMAGE}
           alt={vendor.name}
           fill
           className="object-cover transition-transform duration-300 group-hover:scale-105"
@@ -57,11 +62,12 @@ export function VendorCard({
           </div>
           <button
             type="button"
+            onClick={() => onBook?.(vendor)}
             className={`rounded-full bg-gradient-to-r from-blue-600 via-sky-600 to-blue-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition duration-200 hover:from-blue-700 hover:via-sky-700 hover:to-blue-600 ${
               compact ? "min-w-[72px]" : "min-w-[88px]"
             }`}
           >
-            View
+            Book
           </button>
         </div>
       </div>

@@ -7,9 +7,6 @@ const REQUEST_HEADERS_TO_REMOVE = [
   "host",
   "connection",
   "content-length",
-  "cookie",
-  "origin",
-  "referer",
 ];
 
 const RESPONSE_HEADERS_TO_REMOVE = ["connection", "content-encoding", "content-length", "transfer-encoding"];
@@ -52,3 +49,4 @@ export const POST = proxy;
 export const PUT = proxy;
 export const PATCH = proxy;
 export const DELETE = proxy;
+export const OPTIONS = proxy;

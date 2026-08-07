@@ -2,37 +2,32 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Search } from "@/components/landing/icons";
-import { categories, vendors as staticVendors, type Category, type Vendor as StaticVendor } from "@/data/vendors";
-import { getAuthToken, getVendors } from "@/lib/api";
+import { categories, type Category, type Vendor as StaticVendor } from "@/data/vendors";
+import { getAuthToken, getAuthUser, getVendors } from "@/lib/api";
 import { VendorCard } from "./VendorCard";
+import { BookingModal } from "./BookingModal";
 
 type Filter = "All" | Category;
 
 export function VendorDirectory() {
   const [filter, setFilter] = useState<Filter>("All");
   const [query, setQuery] = useState("");
-  const [vendorList, setVendorList] = useState<StaticVendor[]>(staticVendors);
+  const [vendorList, setVendorList] = useState<StaticVendor[]>([]);
   const [backendError, setBackendError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [bookingVendor, setBookingVendor] = useState<StaticVendor | null>(null);
+  const [bookingNotice, setBookingNotice] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadVendors() {
-      const token = getAuthToken();
-      if (!token) {
-        setBackendError("Sign in to load live vendor listings from the backend.");
-        setVendorList(staticVendors);
-        setIsLoading(false);
-        return;
-      }
-
-      const result = await getVendors(token);
+      const result = await getVendors(getAuthToken() ?? undefined);
       if (result.error) {
         setBackendError(result.error);
-        setVendorList(staticVendors);
+        setVendorList([]);
       } else if (result.data) {
         setVendorList(result.data as StaticVendor[]);
       } else {
-        setVendorList(staticVendors);
+        setVendorList([]);
       }
       setIsLoading(false);
     }
@@ -51,6 +46,20 @@ export function VendorDirectory() {
       return matchesCategory && matchesQuery;
     });
   }, [filter, query, vendorList]);
+
+  function startBooking(vendor: StaticVendor) {
+    const user = getAuthUser();
+    if (!user) {
+      setBackendError("Please sign in as a planner before sending a booking request.");
+      return;
+    }
+    if (user.role.toUpperCase() !== "PLANNER") {
+      setBackendError("Only planner accounts can send booking requests.");
+      return;
+    }
+    setBookingNotice(null);
+    setBookingVendor(vendor);
+  }
 
   return (
     <div>
@@ -79,6 +88,8 @@ export function VendorDirectory() {
         </div>
       ) : null}
 
+      {bookingNotice ? <p role="status" className="fixed bottom-5 right-5 z-50 max-w-sm rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800 shadow-lg">{bookingNotice}</p> : null}
+
       <div className="mt-6 flex flex-wrap gap-2">
         {(["All", ...categories] as Filter[]).map((option) => (
           <button
@@ -99,7 +110,7 @@ export function VendorDirectory() {
       {filtered.length > 0 ? (
         <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((vendor) => (
-            <VendorCard key={vendor.id} vendor={vendor} />
+            <VendorCard key={vendor.id} vendor={vendor} onBook={startBooking} />
           ))}
         </div>
       ) : (
@@ -112,6 +123,14 @@ export function VendorDirectory() {
           </p>
         </div>
       )}
+
+      {bookingVendor ? (
+        <BookingModal
+          vendor={bookingVendor}
+          onClose={() => setBookingVendor(null)}
+          onBooked={(vendorName) => setBookingNotice(`Booking request sent to ${vendorName}. The vendor can now review it in their dashboard.`)}
+        />
+      ) : null}
     </div>
   );
 }

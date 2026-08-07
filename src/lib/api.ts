@@ -44,6 +44,54 @@ export type Vendor = {
   image: string;
 };
 
+export type VendorAvailability = { unavailableDates: string[] };
+
+export type VendorProfile = {
+  businessName: string;
+  category: string;
+  location: string;
+  priceRange?: string | null;
+  availability?: VendorAvailability;
+  isPublished?: boolean;
+};
+
+export type BookingRequest = {
+  vendorId: string;
+  eventType: string;
+  eventDate: string;
+  guestCount: number;
+  eventLocation: string;
+  budget?: string;
+  specialNotes?: string;
+};
+
+export type EnquiryStatus = "NEW" | "PENDING" | "RESPONDED" | "ACCEPTED" | "DECLINED" | "BOOKED" | string;
+
+export type Enquiry = {
+  id: string;
+  vendorId?: string;
+  plannerId?: string;
+  eventType: string;
+  eventDate: string;
+  guestCount: number;
+  eventLocation: string;
+  budget?: string | null;
+  specialNotes?: string | null;
+  status: EnquiryStatus;
+  createdAt?: string;
+  vendor?: Pick<User, "id" | "firstName" | "lastName" | "email"> & { name?: string };
+  planner?: Pick<User, "id" | "firstName" | "lastName" | "email"> & { name?: string };
+  chatRoom?: { id: string } | null;
+};
+
+export type EnquiryMessage = {
+  id: string;
+  content: string;
+  createdAt: string;
+  senderId?: string;
+  sender?: Pick<User, "id" | "firstName" | "lastName" | "role">;
+};
+
 async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<ApiResult<T>> {
   // Default to sending credentials (cookies) so deployments using HttpOnly cookies work.
   // Allow callers to override via `init.credentials`.
@@ -54,9 +102,9 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<ApiR
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
       headers,
       credentials: (init.credentials ?? "include"),
-      ...init,
     });
   } catch {
     return {
@@ -77,15 +125,18 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<ApiR
     let message = response.statusText || "Request failed";
 
     if (typeof json === "object" && json !== null) {
-      const body = json as any;
+      const body = json as Record<string, unknown>;
       if (body.message) {
         message = String(body.message);
       } else if (Array.isArray(body.errors) && body.errors.length > 0) {
         message = body.errors
-          .map((error: any) => {
+          .map((error) => {
             if (typeof error === "string") return error;
-            if (error.msg && error.path) return `${error.path}: ${error.msg}`;
-            if (error.msg) return error.msg;
+            if (typeof error === "object" && error !== null) {
+              const details = error as Record<string, unknown>;
+              if (details.msg && details.path) return `${details.path}: ${details.msg}`;
+              if (details.msg) return String(details.msg);
+            }
             return JSON.stringify(error);
           })
           .join(". ");
@@ -208,18 +259,145 @@ export async function signup(data: {
 }
 
 export async function getVendors(token?: string) {
-  const headers: Record<string, string> = {};
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
+  const unwrap = (value: unknown): Vendor[] => {
+    if (Array.isArray(value)) return value.map((vendor) => {
+      const item = vendor as Record<string, unknown>;
+      const user = item.user as Record<string, unknown> | undefined;
+      const profile = item.profile as Record<string, unknown> | undefined;
+      const firstName = String(user?.firstName ?? item.firstName ?? "");
+      const lastName = String(user?.lastName ?? item.lastName ?? "");
+      const accountName = [firstName, lastName].filter(Boolean).join(" ");
+      return {
+        // Enquiries belong to the vendor account, not an optional profile row.
+        id: String(user?.id ?? item.userId ?? item.id ?? ""),
+        // The planner directory intentionally shows the name used at signup.
+        name: String(accountName || item.name || item.businessName || profile?.businessName || "Registered vendor"),
+        category: String(item.category ?? profile?.category ?? "Event services"),
+        location: String(item.location ?? profile?.location ?? "Location on request"),
+        rating: Number(item.averageRating ?? profile?.averageRating ?? item.rating ?? 0),
+        reviews: Number(item.totalReviews ?? profile?.totalReviews ?? item.reviews ?? 0),
+        startingPrice: String(item.priceRange ?? profile?.priceRange ?? item.startingPrice ?? "Contact for pricing"),
+        image: String(item.profileImage ?? profile?.profileImage ?? item.avatar ?? user?.avatar ?? item.image ?? ""),
+      };
+    }).filter((vendor): vendor is Vendor => vendor !== null && Boolean(vendor.id));
+    if (!value || typeof value !== "object") return [];
+    const response = value as Record<string, unknown>;
+    for (const key of ["vendors", "data", "items", "results"]) {
+      const vendors = unwrap(response[key]);
+      if (vendors.length > 0 || Array.isArray(response[key])) return vendors;
+    }
+    return [];
+  };
+
+  // `/api/vendor` is the registered-vendor collection. Keep the searchable
+  // profile endpoint as a compatibility fallback for older backend deployments.
+  const headers = getAuthHeaders(token);
+  const registered = await apiRequest<unknown>("/api/vendor", { method: "GET", headers });
+  if (!registered.error) {
+    return { data: unwrap(registered.data), error: null } as ApiResult<Vendor[]>;
   }
 
-  return apiRequest<Vendor[]>("/api/vendor", {
+  const search = await apiRequest<unknown>("/api/search/vendors", {
     method: "GET",
     headers,
   });
+  if (search.error) return { data: null, error: registered.error } as ApiResult<Vendor[]>;
+
+  return { data: unwrap(search.data), error: null } as ApiResult<Vendor[]>;
 }
 
-export function getAuthHeaders(token?: string) {
+export async function getVendorAvailability(vendorId: string) {
+  const result = await apiRequest<{ data?: VendorAvailability } & VendorAvailability>(`/api/search/vendors/${encodeURIComponent(vendorId)}/availability`, { method: "GET", credentials: "omit" });
+  return { data: result.data?.data ?? result.data ?? null, error: result.error } as ApiResult<VendorAvailability>;
+}
+
+export async function getMyAvailability(token?: string) {
+  const result = await apiRequest<{ availability?: VendorAvailability; data?: { availability?: VendorAvailability } }>("/api/vendor/profile", { method: "GET", headers: getAuthHeaders(token) });
+  return { data: result.data?.availability ?? result.data?.data?.availability ?? { unavailableDates: [] }, error: result.error } as ApiResult<VendorAvailability>;
+}
+
+export async function getMyVendorProfile(token?: string) {
+  const result = await apiRequest<{ success: boolean; data: VendorProfile }>("/api/vendor/profile", {
+    method: "GET",
+    headers: getAuthHeaders(token),
+  });
+  return { data: result.data?.data ?? null, error: result.error } as ApiResult<VendorProfile>;
+}
+
+export async function updateMyVendorProfile(data: Pick<VendorProfile, "businessName" | "category" | "location" | "priceRange">, token?: string) {
+  const result = await apiRequest<{ success: boolean; data: VendorProfile }>("/api/vendor/profile", {
+    method: "PUT",
+    headers: getAuthHeaders(token),
+    body: JSON.stringify(data),
+  });
+  return { data: result.data?.data ?? null, error: result.error } as ApiResult<VendorProfile>;
+}
+
+export async function updateMyAvailability(availability: VendorAvailability, token?: string) {
+  return apiRequest<VendorAvailability>("/api/vendor/availability", { method: "PUT", headers: getAuthHeaders(token), body: JSON.stringify({ availability }) });
+}
+
+export async function createBooking(data: BookingRequest, token?: string) {
+  const headers: Record<string, string> = {};
+  const auth = getAuthHeaders(token);
+  if (auth.Authorization) headers.Authorization = auth.Authorization;
+
+  return apiRequest<{ success: boolean; message?: string; data: Enquiry }>("/api/bookings", {
+    method: "POST",
+    headers,
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getEnquiries(token?: string) {
+  const user = getAuthUser();
+  const path = user?.role?.toUpperCase() === "VENDOR" ? "/api/bookings/vendor" : "/api/bookings/planner";
+  return apiRequest<{ success: boolean; data: { bookings: Enquiry[] } }>(path, {
+    method: "GET",
+    headers: getAuthHeaders(token),
+  });
+}
+
+export async function updateEnquiryStatus(
+  id: string,
+  status: "ACCEPTED" | "DECLINED",
+  token?: string,
+  responseMessage = "",
+) {
+  const action = status === "ACCEPTED" ? "accept" : "decline";
+  return apiRequest<{ success: boolean; message?: string; data: Enquiry }>(`/api/bookings/${encodeURIComponent(id)}/${action}`, {
+    method: "POST",
+    headers: getAuthHeaders(token),
+    body: JSON.stringify({ responseMessage }),
+  });
+}
+
+export async function getChatRoomMessages(roomId: string, token?: string) {
+  const result = await apiRequest<{ success: boolean; data: EnquiryMessage[] }>(`/api/chat/rooms/${encodeURIComponent(roomId)}/messages`, {
+    method: "GET",
+    headers: getAuthHeaders(token),
+  });
+  return { data: result.data?.data ?? null, error: result.error } as ApiResult<EnquiryMessage[]>;
+}
+
+export async function sendChatRoomMessage(roomId: string, content: string, token?: string) {
+  const result = await apiRequest<{ success: boolean; data: EnquiryMessage }>(`/api/chat/rooms/${encodeURIComponent(roomId)}/messages`, {
+    method: "POST",
+    headers: getAuthHeaders(token),
+    body: JSON.stringify({ content }),
+  });
+  return { data: result.data?.data ?? null, error: result.error } as ApiResult<EnquiryMessage>;
+}
+
+export async function getEnquiryMessages(enquiryId: string, token?: string) {
+  return getChatRoomMessages(enquiryId, token);
+}
+
+export async function sendEnquiryMessage(enquiryId: string, content: string, token?: string) {
+  return sendChatRoomMessage(enquiryId, content, token);
+}
+
+export function getAuthHeaders(token?: string): Record<string, string> {
   const t = token ?? getAuthToken();
   if (!t) return {};
   return { Authorization: `Bearer ${t}` };
@@ -286,6 +464,8 @@ export async function updateProfile(data: Partial<User>, token?: string) {
 }
 
 export async function uploadProfileImage(file: File, token?: string) {
+  void file;
+  void token;
   // Image uploads are disabled in the frontend. Return a safe no-op result
   // so callers that still reference this function will not fail.
   return { data: null, error: "Profile image uploads are disabled" } as ApiResult<{ avatar: string }>;

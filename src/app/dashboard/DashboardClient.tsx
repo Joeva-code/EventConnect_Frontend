@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { clearAuth, getAuthUser, saveAuthUser, type User, updateProfile } from "@/lib/api";
+import { clearAuth, getAuthToken, getAuthUser, getEnquiries, getMyAvailability, getMyVendorProfile, getVendors, saveAuthUser, type Enquiry, type User, updateEnquiryStatus, updateMyAvailability, updateMyVendorProfile, updateProfile } from "@/lib/api";
 import { Footer } from "@/components/landing/Footer";
 import { Header } from "@/components/landing/Header";
 import { VendorCard } from "@/components/vendors/VendorCard";
+import { BookingModal } from "@/components/vendors/BookingModal";
 import { VendorDirectory } from "@/components/vendors/VendorDirectory";
-import { vendors } from "@/data/vendors";
+import type { Vendor as DirectoryVendor } from "@/data/vendors";
 import { Search } from "@/components/landing/icons";
+import { EnquiryChat } from "@/components/enquiries/EnquiryChat";
 
 type PlannerSection =
   | "Dashboard"
@@ -61,18 +63,39 @@ type VendorSection =
   | "Leads"
   | "Bookings"
   | "Messages"
+  | "Availability"
   | "Profile"
   | "Portfolio"
   | "Payouts";
 
 const vendorNavItems: VendorSection[] = [
   "Dashboard",
+  "Leads",
   "Bookings",
   "Messages",
+  "Availability",
   "Profile",
   "Portfolio",
   "Payouts",
 ];
+
+function enquiryList(value: unknown): Enquiry[] {
+  if (Array.isArray(value)) return value as Enquiry[];
+  if (!value || typeof value !== "object") return [];
+
+  const response = value as Record<string, unknown>;
+  for (const key of ["bookings", "enquiries", "data", "items", "results"]) {
+    const list = enquiryList(response[key]);
+    if (list.length > 0 || Array.isArray(response[key])) return list;
+  }
+
+  return [];
+}
+
+function contactName(enquiry: Enquiry, role: "PLANNER" | "VENDOR") {
+  const contact = role === "VENDOR" ? enquiry.planner : enquiry.vendor;
+  return contact?.name || [contact?.firstName, contact?.lastName].filter(Boolean).join(" ") || contact?.email || "EventConnect user";
+}
 
 const vendorStatus = [
   {
@@ -264,7 +287,18 @@ export default function DashboardClient() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeVendorSection, setActiveVendorSection] = useState<VendorSection>("Dashboard");
   const [activeSection, setActiveSection] = useState<PlannerSection>("Dashboard");
+  const [bookingVendor, setBookingVendor] = useState<DirectoryVendor | null>(null);
+  const [bookingNotice, setBookingNotice] = useState<string | null>(null);
+  const [vendorList, setVendorList] = useState<DirectoryVendor[]>([]);
+  const [unavailableDates, setUnavailableDates] = useState<string[]>([]);
+  const [availabilityDate, setAvailabilityDate] = useState("");
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
+  const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
+  const [enquiryError, setEnquiryError] = useState<string | null>(null);
+  const [isLoadingEnquiries, setIsLoadingEnquiries] = useState(false);
+  const [chatEnquiry, setChatEnquiry] = useState<Enquiry | null>(null);
   const [profileForm, setProfileForm] = useState({ firstName: "", lastName: "" });
+  const [vendorProfileForm, setVendorProfileForm] = useState({ businessName: "", category: "", location: "", priceRange: "" });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -286,6 +320,87 @@ export default function DashboardClient() {
       setProfileForm({ firstName: user.firstName || "", lastName: user.lastName || "" });
     }
   }, [user]);
+
+  async function loadEnquiries() {
+    setIsLoadingEnquiries(true);
+    setEnquiryError(null);
+    const result = await getEnquiries(getAuthToken() ?? undefined);
+    if (result.error) setEnquiryError(result.error);
+    else setEnquiries(enquiryList(result.data));
+    setIsLoadingEnquiries(false);
+  }
+
+  async function loadVendors() {
+    const result = await getVendors(getAuthToken() ?? undefined);
+    if (result.error) return;
+    const liveVendors = Array.isArray(result.data) ? result.data : [];
+    setVendorList(liveVendors);
+  }
+
+  function showAllEnquiries() {
+    setActiveSection("Messages");
+    void loadEnquiries();
+  }
+
+  useEffect(() => {
+    if (user) {
+      void loadEnquiries();
+      void loadVendors();
+      if (user.role.toUpperCase() === "VENDOR") {
+        void getMyVendorProfile(getAuthToken() ?? undefined).then((result) => {
+          if (!result.error && result.data) {
+            setVendorProfileForm({
+              businessName: result.data.businessName ?? "",
+              category: result.data.category ?? "",
+              location: result.data.location ?? "",
+              priceRange: result.data.priceRange ?? "",
+            });
+          }
+        });
+        void getMyAvailability(getAuthToken() ?? undefined).then((result) => {
+          if (!result.error) setUnavailableDates(result.data?.unavailableDates ?? []);
+        });
+
+        const enquiryRefresh = window.setInterval(() => {
+          void loadEnquiries();
+        }, 5_000);
+
+        return () => window.clearInterval(enquiryRefresh);
+      }
+    }
+  }, [user]);
+
+  async function blockAvailabilityDate() {
+    if (!availabilityDate || unavailableDates.includes(availabilityDate)) return;
+    const dates = [...unavailableDates, availabilityDate].sort();
+    const result = await updateMyAvailability({ unavailableDates: dates }, getAuthToken() ?? undefined);
+    if (result.error) return setAvailabilityError(result.error);
+    setUnavailableDates(dates);
+    setAvailabilityDate("");
+    setAvailabilityError(null);
+  }
+
+  async function unblockAvailabilityDate(date: string) {
+    const dates = unavailableDates.filter((item) => item !== date);
+    const result = await updateMyAvailability({ unavailableDates: dates }, getAuthToken() ?? undefined);
+    if (result.error) return setAvailabilityError(result.error);
+    setUnavailableDates(dates);
+    setAvailabilityError(null);
+  }
+
+  async function reviewEnquiry(id: string, status: "ACCEPTED" | "DECLINED") {
+    const result = await updateEnquiryStatus(id, status, getAuthToken() ?? undefined);
+    if (result.error) {
+      setEnquiryError(result.error);
+      return;
+    }
+    const updated = result.data?.data;
+    setEnquiries((current) => current.map((enquiry) => enquiry.id === id ? {
+      ...enquiry,
+      ...(updated ?? {}),
+      status: updated?.status ?? (status === "ACCEPTED" ? "BOOKED" : "DECLINED"),
+    } : enquiry));
+  }
 
   useEffect(() => {
     if (!selectedFile) {
@@ -348,7 +463,29 @@ export default function DashboardClient() {
   const isPlanner = role === "PLANNER";
   const isVendor = role === "VENDOR";
   const greetingName = user.firstName || user.email.split("@")[0];
-  const recommendedVendors = vendors.slice(0, 4);
+  const currentEnquiries = enquiryList(enquiries);
+  const pendingEnquiries = currentEnquiries.filter((enquiry) => enquiry.status?.toUpperCase?.() === "NEW");
+  const acceptedEnquiries = currentEnquiries.filter((enquiry) => enquiry.status?.toUpperCase?.() === "BOOKED");
+  const statusCards = [
+    { title: "Waiting for Response", subtitle: "Awaiting vendor reply", value: pendingEnquiries.length, accent: "bg-amber-100 text-amber-700" },
+    { title: "Accepted", subtitle: "Confirmed bookings", value: acceptedEnquiries.length, accent: "bg-emerald-100 text-emerald-700" },
+    { title: "Total enquiries", subtitle: "All booking requests", value: currentEnquiries.length, accent: "bg-sky-100 text-sky-700" },
+  ];
+  const vendorStatus = [
+    { title: "New enquiries", subtitle: "Awaiting your response", value: pendingEnquiries.length, accent: "bg-amber-100 text-amber-700" },
+    { title: "Confirmed bookings", subtitle: "Accepted requests", value: acceptedEnquiries.length, accent: "bg-emerald-100 text-emerald-700" },
+    { title: "Total enquiries", subtitle: "All planner requests", value: currentEnquiries.length, accent: "bg-sky-100 text-sky-700" },
+  ];
+  const eventTypes = [...new Set(currentEnquiries.map((enquiry) => enquiry.eventType).filter(Boolean))];
+  const recommendedVendors = vendorList.slice(0, 4);
+  const vendorEnquiries = currentEnquiries;
+  const plannerEnquiriesForUser = currentEnquiries;
+  const vendorBookings = acceptedEnquiries;
+  const plannerNotifications = currentEnquiries.slice(0, 5).map((enquiry) => ({
+    headline: `${enquiry.status} — ${contactName(enquiry, "PLANNER")}`,
+    detail: `${enquiry.eventType} on ${enquiry.eventDate}`,
+    time: enquiry.createdAt ? new Date(enquiry.createdAt).toLocaleDateString() : "Recent",
+  }));
 
   if (isVendor) {
     const vendorName = user.firstName || user.email.split("@")[0];
@@ -434,6 +571,7 @@ export default function DashboardClient() {
 
               {activeVendorSection === "Dashboard" ? (
                 <>
+                  {pendingEnquiries.length > 0 ? <div role="status" className="rounded-[28px] border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900"><span className="font-semibold">New booking request{pendingEnquiries.length === 1 ? "" : "s"} received.</span> Review {pendingEnquiries.length === 1 ? "it" : "them"} in Leads.</div> : null}
                   <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
                     {vendorStatus.map((card) => (
                       <div key={card.title} className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
@@ -453,23 +591,23 @@ export default function DashboardClient() {
                           <p className="text-sm font-semibold text-slate-500">Latest leads</p>
                           <h2 className="mt-1 text-2xl font-semibold text-slate-950">Recent planner enquiries</h2>
                         </div>
-                        <button type="button" className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
+                        <button type="button" onClick={() => setActiveVendorSection("Leads")} className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
                           View all
                         </button>
                       </div>
 
                       <div className="mt-6 space-y-4">
-                        {vendorLeads.map((lead) => (
-                          <div key={`${lead.planner}-${lead.date}`} className="rounded-[28px] border border-slate-200 bg-slate-50 p-4">
+                        {vendorEnquiries.slice(0, 4).map((enquiry) => (
+                          <div key={enquiry.id} className="rounded-[28px] border border-slate-200 bg-slate-50 p-4">
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                               <div>
-                                <p className="text-sm font-semibold text-slate-950">{lead.planner}</p>
-                                <p className="text-sm text-slate-600">{lead.event} • {lead.date}</p>
+                                <p className="text-sm font-semibold text-slate-950">{contactName(enquiry, "VENDOR")}</p>
+                                <p className="text-sm text-slate-600">{enquiry.eventType} · {enquiry.eventDate}</p>
                               </div>
                               <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
-                                <span>{lead.budget}</span>
+                                <span>{enquiry.budget || "Budget not specified"}</span>
                                 <span className="rounded-full bg-white px-3 py-1 text-slate-700 shadow-sm">
-                                  {lead.status}
+                                  {enquiry.status}
                                 </span>
                               </div>
                             </div>
@@ -485,24 +623,12 @@ export default function DashboardClient() {
                             <p className="text-sm font-semibold text-slate-500">Performance</p>
                             <h2 className="mt-1 text-2xl font-semibold text-slate-950">Weekly engagement</h2>
                           </div>
-                          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
-                            +12% vs last week
-                          </span>
-                        </div>
-
-                        <div className="mt-6 flex items-end gap-3 px-1">
-                          {vendorPerformance.map((point) => (
-                            <div key={point.label} className="flex-1 text-center">
-                              <div className="mx-auto h-24 w-full rounded-3xl bg-slate-100" style={{ height: `${point.value / 1.2}px` }}>
-                                <div className="h-full rounded-3xl bg-gradient-to-b from-blue-600 to-sky-500" />
-                              </div>
-                              <p className="mt-2 text-xs font-semibold text-slate-500">{point.label}</p>
-                            </div>
-                          ))}
                         </div>
 
                         <div className="mt-5 rounded-3xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                          3 new planner messages this week. Keep your response rate high to convert more leads.
+                          {pendingEnquiries.length > 0
+                            ? `${pendingEnquiries.length} enquiry${pendingEnquiries.length === 1 ? "" : "ies"} need your response.`
+                            : "You have no enquiries awaiting a response."}
                         </div>
                       </div>
 
@@ -534,26 +660,31 @@ export default function DashboardClient() {
                       <p className="text-sm font-semibold text-slate-500">Open leads</p>
                       <h2 className="mt-1 text-2xl font-semibold text-slate-950">Your incoming requests</h2>
                     </div>
-                    <button type="button" className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
+                    <button type="button" onClick={loadEnquiries} className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
                       Refresh list
                     </button>
                   </div>
 
                   <div className="mt-6 space-y-4">
-                    {vendorLeads.map((lead) => (
-                      <div key={`${lead.planner}-${lead.date}`} className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
+                    {enquiryError ? <p role="alert" className="rounded-2xl bg-rose-50 p-4 text-sm text-rose-700">{enquiryError}</p> : null}
+                    {isLoadingEnquiries ? <p className="text-sm text-slate-500">Loading requests…</p> : null}
+                    {vendorEnquiries.map((enquiry) => (
+                      <div key={enquiry.id} className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <div>
-                            <p className="text-sm font-semibold text-slate-950">{lead.planner}</p>
-                            <p className="mt-1 text-sm text-slate-600">{lead.event} • {lead.date}</p>
+                            <p className="text-sm font-semibold text-slate-950">{contactName(enquiry, "VENDOR")}</p>
+                            <p className="mt-1 text-sm text-slate-600">{enquiry.eventType} · {enquiry.eventDate} · {enquiry.guestCount} guests</p>
                           </div>
                           <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
-                            <span>{lead.budget}</span>
-                            <span className="rounded-full bg-white px-3 py-1 text-slate-700 shadow-sm">{lead.status}</span>
+                            <span>{enquiry.budget || "Budget not specified"}</span>
+                            <span className="rounded-full bg-white px-3 py-1 text-slate-700 shadow-sm">{enquiry.status}</span>
+                            {enquiry.status === "NEW" ? <><button type="button" onClick={() => reviewEnquiry(enquiry.id, "ACCEPTED")} className="rounded-full bg-emerald-600 px-3 py-1 font-semibold text-white">Accept</button><button type="button" onClick={() => reviewEnquiry(enquiry.id, "DECLINED")} className="rounded-full border border-slate-200 bg-white px-3 py-1 font-semibold text-slate-700">Decline</button></> : null}
+                            {enquiry.chatRoom?.id ? <button type="button" onClick={() => setChatEnquiry(enquiry)} className="rounded-full bg-blue-600 px-3 py-1 font-semibold text-white">Chat</button> : null}
                           </div>
                         </div>
                       </div>
                     ))}
+                    {!isLoadingEnquiries && vendorEnquiries.length === 0 && !enquiryError ? <p className="text-sm text-slate-500">No planner requests yet.</p> : null}
                   </div>
                 </div>
               ) : activeVendorSection === "Bookings" ? (
@@ -570,20 +701,21 @@ export default function DashboardClient() {
 
                   <div className="mt-6 space-y-4">
                     {vendorBookings.map((booking) => (
-                      <div key={`${booking.client}-${booking.date}`} className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
+                      <div key={booking.id} className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <div>
-                            <p className="text-sm font-semibold text-slate-950">{booking.client}</p>
-                            <p className="mt-1 text-sm text-slate-600">{booking.service}</p>
+                            <p className="text-sm font-semibold text-slate-950">{contactName(booking, "VENDOR")}</p>
+                            <p className="mt-1 text-sm text-slate-600">{booking.eventType} · {booking.eventLocation}</p>
                           </div>
                           <div className="text-sm text-slate-500 sm:text-right">
-                            <p>{booking.date}</p>
-                            <p className="mt-1 font-semibold text-slate-900">{booking.total}</p>
+                            <p>{booking.eventDate}</p>
+                            <p className="mt-1 font-semibold text-slate-900">{booking.budget || "Budget not specified"}</p>
                             <span className="mt-1 inline-flex rounded-full bg-white px-3 py-1 text-slate-700 shadow-sm">{booking.status}</span>
                           </div>
                         </div>
                       </div>
                     ))}
+                    {!isLoadingEnquiries && vendorBookings.length === 0 ? <p className="text-sm text-slate-500">No accepted bookings yet.</p> : null}
                   </div>
                 </div>
               ) : activeVendorSection === "Messages" ? (
@@ -599,18 +731,32 @@ export default function DashboardClient() {
                   </div>
 
                   <div className="mt-6 space-y-4">
-                    {vendorMessages.map((message, idx) => (
-                      <div key={`${message.from}-${idx}`} className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
+                    {vendorEnquiries.filter((enquiry) => enquiry.chatRoom?.id).map((enquiry) => (
+                      <button type="button" key={enquiry.id} onClick={() => setChatEnquiry(enquiry)} className="w-full rounded-[28px] border border-slate-200 bg-slate-50 p-5 text-left">
                         <div className="flex items-start justify-between gap-4">
                           <div>
-                            <p className="text-sm font-semibold text-slate-950">{message.from}</p>
-                            <p className="mt-1 text-sm text-slate-600">{message.subject}</p>
-                            <p className="mt-2 text-sm text-slate-500">{message.preview}</p>
+                            <p className="text-sm font-semibold text-slate-950">{contactName(enquiry, "VENDOR")}</p>
+                            <p className="mt-1 text-sm text-slate-600">{enquiry.eventType} enquiry</p>
+                            <p className="mt-2 text-sm text-slate-500">{enquiry.specialNotes || "Open conversation"}</p>
                           </div>
-                          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">{message.time}</p>
+                          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">{enquiry.createdAt ? new Date(enquiry.createdAt).toLocaleDateString() : "Recent"}</p>
                         </div>
-                      </div>
+                      </button>
                     ))}
+                    {!isLoadingEnquiries && vendorEnquiries.length === 0 ? <p className="text-sm text-slate-500">No conversations yet.</p> : null}
+                  </div>
+                </div>
+              ) : activeVendorSection === "Availability" ? (
+                <div className="rounded-[32px] bg-white p-6 shadow-sm">
+                  <p className="text-sm font-semibold text-slate-500">Availability calendar</p>
+                  <h2 className="mt-1 text-2xl font-semibold text-slate-950">Block dates you cannot take bookings</h2>
+                  <div className="mt-6 flex flex-wrap gap-3">
+                    <input type="date" min={new Date().toISOString().slice(0, 10)} value={availabilityDate} onChange={(event) => setAvailabilityDate(event.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3" />
+                    <button type="button" onClick={blockAvailabilityDate} disabled={!availabilityDate} className="rounded-3xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white disabled:bg-slate-300">Block date</button>
+                  </div>
+                  {availabilityError ? <p role="alert" className="mt-4 text-sm text-rose-600">{availabilityError}</p> : null}
+                  <div className="mt-6 flex flex-wrap gap-3">
+                    {unavailableDates.length ? unavailableDates.map((date) => <button type="button" key={date} onClick={() => unblockAvailabilityDate(date)} className="rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700">{date} ×</button>) : <p className="text-sm text-slate-500">No dates are blocked. You are available for bookings.</p>}
                   </div>
                 </div>
               ) : activeVendorSection === "Profile" ? (
@@ -624,6 +770,19 @@ export default function DashboardClient() {
 
                   <div className="mt-6 grid gap-4">
                     <div className="grid gap-4">
+                      <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
+                        <p className="text-sm font-semibold text-slate-900">Listing details</p>
+                        <p className="mt-1 text-sm text-slate-600">Complete these fields to publish your listing and receive booking requests.</p>
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                          <input value={vendorProfileForm.businessName} onChange={(e) => setVendorProfileForm((profile) => ({ ...profile, businessName: e.target.value }))} placeholder="Business name" className="rounded-2xl border border-slate-200 bg-white px-4 py-3" />
+                          <input value={vendorProfileForm.category} onChange={(e) => setVendorProfileForm((profile) => ({ ...profile, category: e.target.value }))} placeholder="Service category" className="rounded-2xl border border-slate-200 bg-white px-4 py-3" />
+                          <input value={vendorProfileForm.location} onChange={(e) => setVendorProfileForm((profile) => ({ ...profile, location: e.target.value }))} placeholder="Location" className="rounded-2xl border border-slate-200 bg-white px-4 py-3" />
+                          <input value={vendorProfileForm.priceRange} onChange={(e) => setVendorProfileForm((profile) => ({ ...profile, priceRange: e.target.value }))} placeholder="Price range (optional)" className="rounded-2xl border border-slate-200 bg-white px-4 py-3" />
+                        </div>
+                        <button type="button" onClick={saveVendorProfile} disabled={isSaving || !vendorProfileForm.businessName || !vendorProfileForm.category || !vendorProfileForm.location} className="mt-4 rounded-3xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300">
+                          {isSaving ? "Publishing..." : "Save and publish listing"}
+                        </button>
+                      </div>
                       <div className="grid gap-2 sm:grid-cols-[1fr_1fr]">
                         <input
                           value={profileForm.firstName}
@@ -694,14 +853,7 @@ export default function DashboardClient() {
                     </button>
                   </div>
 
-                  <div className="mt-6 grid gap-4">
-                    {vendorPortfolio.map((item) => (
-                      <div key={item.title} className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
-                        <p className="text-sm font-semibold text-slate-950">{item.title}</p>
-                        <p className="mt-2 text-sm text-slate-600">{item.description}</p>
-                      </div>
-                    ))}
-                  </div>
+                  <p className="mt-6 rounded-[28px] border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">Portfolio data will appear here when the backend portfolio endpoint is available.</p>
                 </div>
               ) : (
                 <div className="rounded-[32px] bg-white p-6 shadow-sm">
@@ -715,19 +867,7 @@ export default function DashboardClient() {
                     </button>
                   </div>
 
-                  <div className="mt-6 space-y-4">
-                    {vendorPayouts.map((payout) => (
-                      <div key={payout.period} className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                          <div>
-                            <p className="text-sm font-semibold text-slate-950">{payout.period}</p>
-                            <p className="mt-1 text-sm text-slate-600">{payout.status}</p>
-                          </div>
-                          <p className="text-sm font-semibold text-slate-900">{payout.amount}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <p className="mt-6 rounded-[28px] border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">Payout data will appear here when the backend payout endpoint is available.</p>
                 </div>
               )}
             </section>
@@ -735,8 +875,19 @@ export default function DashboardClient() {
         </main>
 
         <Footer />
+        {chatEnquiry ? <EnquiryChat enquiry={chatEnquiry} currentUser={user as User} onClose={() => setChatEnquiry(null)} /> : null}
       </div>
     );
+  }
+
+  async function saveVendorProfile() {
+    setIsSaving(true);
+    setSaveError(null);
+    const result = await updateMyVendorProfile(vendorProfileForm, getAuthToken() ?? undefined);
+    setIsSaving(false);
+    if (result.error) {
+      setSaveError(result.error);
+    }
   }
 
   if (!isPlanner) {
@@ -890,6 +1041,7 @@ export default function DashboardClient() {
                           {type}
                         </button>
                       ))}
+                      {eventTypes.length === 0 ? <p className="text-sm text-slate-500">Your event types will appear after you send enquiries.</p> : null}
                     </div>
                   </div>
                 </div>
@@ -900,7 +1052,7 @@ export default function DashboardClient() {
                       <p className="text-sm font-semibold text-slate-500">Enquiry Status</p>
                       <p className="mt-1 text-base font-semibold text-slate-950">Review your active requests</p>
                     </div>
-                    <button type="button" className="text-sm font-semibold text-blue-600 hover:underline">
+                    <button type="button" onClick={showAllEnquiries} className="text-sm font-semibold text-blue-600 hover:underline">
                       View all enquiries
                     </button>
                   </div>
@@ -935,9 +1087,19 @@ export default function DashboardClient() {
                 </div>
                 <div className="mt-5 grid gap-3 grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
                   {recommendedVendors.map((vendor) => (
-                    <VendorCard key={vendor.id} vendor={vendor} compact />
+                    <VendorCard
+                      key={vendor.id}
+                      vendor={vendor}
+                      compact
+                      onBook={(selectedVendor) => {
+                        setBookingNotice(null);
+                        setBookingVendor(selectedVendor);
+                      }}
+                    />
                   ))}
+                  {recommendedVendors.length === 0 ? <p className="text-sm text-slate-500">No vendor listings are available yet.</p> : null}
                 </div>
+                {bookingNotice ? <p role="status" className="fixed bottom-5 right-5 z-50 max-w-sm rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800 shadow-lg">{bookingNotice}</p> : null}
               </section>
             </>
           ) : activeSection === "Discover Vendors" ? (
@@ -952,25 +1114,27 @@ export default function DashboardClient() {
                     <p className="text-sm font-semibold text-slate-500">Your enquiries</p>
                     <h2 className="mt-1 text-2xl font-semibold text-slate-950">Active vendor conversations</h2>
                   </div>
-                  <button type="button" className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
-                    View all
+                  <button type="button" onClick={loadEnquiries} className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
+                    Refresh list
                   </button>
                 </div>
                 <div className="mt-6 space-y-4">
-                  {plannerEnquiries.map((item) => (
-                    <div key={`${item.vendor}-${item.date}`} className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
+                  {plannerEnquiriesForUser.map((enquiry) => (
+                    <div key={enquiry.id} className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                          <p className="text-sm font-semibold text-slate-950">{item.vendor}</p>
-                          <p className="mt-1 text-sm text-slate-600">{item.event} • {item.date}</p>
+                          <p className="text-sm font-semibold text-slate-950">{contactName(enquiry, "PLANNER")}</p>
+                          <p className="mt-1 text-sm text-slate-600">{enquiry.eventType} · {enquiry.eventDate}</p>
                         </div>
                         <div className="flex flex-col items-start gap-2 text-sm text-slate-500 sm:items-end">
-                          <span>{item.budget}</span>
-                          <span className="rounded-full bg-white px-3 py-1 text-slate-700 shadow-sm">{item.status}</span>
+                          <span>{enquiry.budget || "Budget not specified"}</span>
+                          <span className="rounded-full bg-white px-3 py-1 text-slate-700 shadow-sm">{enquiry.status}</span>
+                          {enquiry.chatRoom?.id ? <button type="button" onClick={() => setChatEnquiry(enquiry)} className="rounded-full bg-blue-600 px-3 py-1 font-semibold text-white">Chat</button> : null}
                         </div>
                       </div>
                     </div>
                   ))}
+                  {!isLoadingEnquiries && plannerEnquiriesForUser.length === 0 ? <p className="text-sm text-slate-500">You have not sent any booking requests yet.</p> : null}
                 </div>
               </div>
 
@@ -1047,6 +1211,17 @@ export default function DashboardClient() {
         </section>
       </div>
     </main>
+      {bookingVendor ? (
+        <BookingModal
+          vendor={bookingVendor}
+          onClose={() => setBookingVendor(null)}
+          onBooked={(vendorName) => {
+            setBookingNotice(`Booking request sent to ${vendorName}. The vendor can now review it in their dashboard.`);
+            void loadEnquiries();
+          }}
+        />
+      ) : null}
+      {chatEnquiry ? <EnquiryChat enquiry={chatEnquiry} currentUser={user as User} onClose={() => setChatEnquiry(null)} /> : null}
       <Footer />
     </div>
   );
