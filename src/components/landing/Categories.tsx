@@ -1,44 +1,12 @@
 import Image from "next/image";
 import { ArrowRight } from "./icons";
+import { CATEGORY_IMAGES } from "@/lib/images";
 
-const categories = [
-  {
-    name: "Decoration & Styling",
-    count: "1,240+ Vendors",
-    image:
-      "https://images.unsplash.com/photo-1649677874593-a04cb075c7a0?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    name: "Catering & Cakes",
-    count: "980+ Vendors",
-    image:
-      "https://images.unsplash.com/photo-1763048443535-1243379234e2?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    name: "Venue & Space",
-    count: "540+ Vendors",
-    image:
-      "https://images.unsplash.com/photo-1738860283475-c7590c92eae8?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    name: "Music & Entertainment",
-    count: "430+ Vendors",
-    image:
-      "https://images.unsplash.com/photo-1689152496387-7c91e1ad129e?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    name: "Photography & Video Editing",
-    count: "1,510+ Vendors",
-    image:
-      "https://images.unsplash.com/photo-1661332306744-70f9ed1a7f40?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    name: "Stage & Lighting",
-    count: "430+ Vendors",
-    image:
-      "https://images.unsplash.com/photo-1649525663526-01467119a796?auto=format&fit=crop&w=800&q=80",
-  },
-];
+const categories = Object.entries(CATEGORY_IMAGES).map(([name]) => ({
+  name,
+  count: "View vendors",
+  image: CATEGORY_IMAGES[name][0],
+}));
 
 export function Categories() {
   return (

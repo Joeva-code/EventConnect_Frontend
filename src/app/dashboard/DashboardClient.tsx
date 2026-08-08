@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { clearAuth, getAuthToken, getAuthUser, getEnquiries, getMyAvailability, getMyVendorProfile, getVendors, saveAuthUser, type Enquiry, type User, updateEnquiryStatus, updateMyAvailability, updateMyVendorProfile, updateProfile } from "@/lib/api";
+import { clearAuth, getAuthToken, getAuthUser, getEnquiries, getMyAvailability, getMyVendorProfile, getVendors, saveAuthUser, type Enquiry, type User, updateEnquiryStatus, updateMyAvailability, updateMyVendorProfile, updateProfile, uploadProfileImage } from "@/lib/api";
 import { Footer } from "@/components/landing/Footer";
 import { Header } from "@/components/landing/Header";
 import { VendorCard } from "@/components/vendors/VendorCard";
@@ -10,7 +10,9 @@ import { BookingModal } from "@/components/vendors/BookingModal";
 import { VendorDirectory } from "@/components/vendors/VendorDirectory";
 import type { Vendor as DirectoryVendor } from "@/data/vendors";
 import { Search, Bell } from "@/components/landing/icons";
+import Image from "next/image";
 import { EnquiryChat } from "@/components/enquiries/EnquiryChat";
+import { FALLBACK_AVATAR_IMAGE, FALLBACK_VENDOR_IMAGE, getEventTypeImage } from "@/lib/images";
 
 type PlannerSection =
   | "Dashboard"
@@ -25,6 +27,16 @@ const plannerNavItems: Array<{ id: PlannerSection; label: string }> = [
   { id: "Messages", label: "Messages" },
   { id: "Profile", label: "Profile" },
   { id: "Settings", label: "Settings" },
+];
+
+const EVENT_TYPES = [
+  "Wedding",
+  "Birthday",
+  "Naming Ceremony",
+  "Conference",
+  "Book Launch",
+  "Graduation",
+  "Corporate Event",
 ];
 
 const statusCards = [
@@ -65,7 +77,6 @@ type VendorSection =
   | "Messages"
   | "Availability"
   | "Profile"
-  | "Portfolio"
   | "Payouts";
 
 const vendorNavItems: VendorSection[] = [
@@ -75,7 +86,6 @@ const vendorNavItems: VendorSection[] = [
   "Messages",
   "Availability",
   "Profile",
-  "Portfolio",
   "Payouts",
 ];
 
@@ -210,17 +220,6 @@ const vendorMessages = [
   },
 ];
 
-const vendorPortfolio = [
-  {
-    title: "Elegant Wedding Decor",
-    description: "Marble centerpieces and custom lighting for a 200 person wedding.",
-  },
-  {
-    title: "Corporate Gala Set",
-    description: "Stage design and AV support for a multinational launch event.",
-  },
-];
-
 const vendorPayouts = [
   {
     period: "July 2026",
@@ -309,11 +308,12 @@ export default function DashboardClient() {
     setChatEnquiry(enquiry);
   }
   const [profileForm, setProfileForm] = useState({ firstName: "", lastName: "" });
-  const [vendorProfileForm, setVendorProfileForm] = useState({ businessName: "", category: "", location: "", priceRange: "" });
+  const [vendorProfileForm, setVendorProfileForm] = useState({ businessName: "", category: "", location: "", priceRange: "", description: "" });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [vendorProfileSaved, setVendorProfileSaved] = useState(false);
 
   useEffect(() => {
     const authUser = getAuthUser();
@@ -365,6 +365,7 @@ export default function DashboardClient() {
               category: result.data.category ?? "",
               location: result.data.location ?? "",
               priceRange: result.data.priceRange ?? "",
+              description: result.data.description ?? "",
             });
           }
         });
@@ -432,7 +433,23 @@ export default function DashboardClient() {
     setSaveError(null);
 
     try {
-      // Profile image uploads are disabled. Only update textual profile fields.
+      let updatedUser = { ...(user as User) };
+
+      if (selectedFile) {
+        const uploadResult = await uploadProfileImage(selectedFile, getAuthToken() ?? undefined);
+        if (uploadResult.error) {
+          setSaveError(uploadResult.error);
+          setIsSaving(false);
+          return;
+        }
+        const avatarUrl = uploadResult.data?.avatar;
+        if (avatarUrl) {
+          updatedUser = { ...updatedUser, avatar: avatarUrl };
+          saveAuthUser(updatedUser);
+          setUser(updatedUser);
+        }
+      }
+
       const payload: Partial<User> = {
         firstName: profileForm.firstName,
         lastName: profileForm.lastName,
@@ -445,9 +462,9 @@ export default function DashboardClient() {
         return;
       }
 
-      const updatedUser = { ...(user as User), ...(res.data as User) };
-      saveAuthUser(updatedUser);
-      setUser(updatedUser);
+      const finalUser = { ...updatedUser, ...(res.data as User) };
+      saveAuthUser(finalUser);
+      setUser(finalUser);
       setSelectedFile(null);
     } catch (err: any) {
       setSaveError(String(err?.message ?? err));
@@ -523,12 +540,17 @@ export default function DashboardClient() {
               <div className="mb-6 rounded-[28px] bg-slate-50 p-5">
                 <div className="flex items-center gap-3">
                   {user.avatar ? (
-                    <img
-                      src={user.avatar}
-                      alt={`${vendorName} profile`}
-                      className="h-12 w-12 rounded-full object-cover"
-                    />
-                  ) : (
+                     <img
+                       src={user.avatar}
+                       alt={`${vendorName} profile`}
+                       className="h-12 w-12 rounded-full object-cover"
+                       onError={(e) => {
+                         const target = e.currentTarget;
+                         target.onerror = null;
+                         target.src = FALLBACK_AVATAR_IMAGE;
+                       }}
+                     />
+                   ) : (
                     <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white shadow-sm">
                       {(() => {
                         const initials = [user.firstName, user.lastName]
@@ -791,9 +813,12 @@ export default function DashboardClient() {
                           <input value={vendorProfileForm.location} onChange={(e) => setVendorProfileForm((profile) => ({ ...profile, location: e.target.value }))} placeholder="Location" className="rounded-2xl border border-slate-200 bg-white px-4 py-3" />
                           <input value={vendorProfileForm.priceRange} onChange={(e) => setVendorProfileForm((profile) => ({ ...profile, priceRange: e.target.value }))} placeholder="Price range (optional)" className="rounded-2xl border border-slate-200 bg-white px-4 py-3" />
                         </div>
+                        <textarea value={vendorProfileForm.description} onChange={(e) => setVendorProfileForm((profile) => ({ ...profile, description: e.target.value }))} placeholder="Describe your services, experience, and what makes you stand out." rows={4} className="mt-3 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm" />
                         <button type="button" onClick={saveVendorProfile} disabled={isSaving || !vendorProfileForm.businessName || !vendorProfileForm.category || !vendorProfileForm.location} className="mt-4 rounded-3xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300">
-                          {isSaving ? "Publishing..." : "Save and publish listing"}
+                          {isSaving ? "Saving..." : "Save and publish listing"}
                         </button>
+                        {vendorProfileSaved ? <p className="mt-2 text-sm text-emerald-700">Listing saved and published.</p> : null}
+                        {saveError ? <p className="mt-2 text-sm text-rose-600">{saveError}</p> : null}
                       </div>
                       <div className="grid gap-2 sm:grid-cols-[1fr_1fr]">
                         <input
@@ -853,20 +878,6 @@ export default function DashboardClient() {
                     </div>
                   </div>
                 </div>
-              ) : activeVendorSection === "Portfolio" ? (
-                <div className="rounded-[32px] bg-white p-6 shadow-sm">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-500">Portfolio</p>
-                      <h2 className="mt-1 text-2xl font-semibold text-slate-950">Showcase your work</h2>
-                    </div>
-                    <button type="button" className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
-                      Add new item
-                    </button>
-                  </div>
-
-                  <p className="mt-6 rounded-[28px] border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">Portfolio data will appear here when the backend portfolio endpoint is available.</p>
-                </div>
               ) : (
                 <div className="rounded-[32px] bg-white p-6 shadow-sm">
                   <div className="flex items-center justify-between">
@@ -895,10 +906,14 @@ export default function DashboardClient() {
   async function saveVendorProfile() {
     setIsSaving(true);
     setSaveError(null);
+    setVendorProfileSaved(false);
     const result = await updateMyVendorProfile(vendorProfileForm, getAuthToken() ?? undefined);
     setIsSaving(false);
     if (result.error) {
       setSaveError(result.error);
+    } else {
+      setVendorProfileSaved(true);
+      setTimeout(() => setVendorProfileSaved(false), 3000);
     }
   }
 
@@ -949,6 +964,11 @@ export default function DashboardClient() {
                   src={user.avatar}
                   alt={`${user.firstName ?? "User"} profile"`}
                   className="h-12 w-12 rounded-full object-cover"
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    target.onerror = null;
+                    target.src = FALLBACK_AVATAR_IMAGE;
+                  }}
                 />
               ) : (
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white shadow-sm">
@@ -1051,26 +1071,36 @@ export default function DashboardClient() {
                     ))}
                   </div>
 
-                  <div className="mt-8">
-                    <div className="flex items-center justify-between">
-                      <h2 className="text-xl font-semibold text-slate-950">What type of event are you planning?</h2>
-                      <button type="button" className="text-sm font-semibold text-blue-600 hover:underline">
-                        View all
-                      </button>
-                    </div>
-                    <div className="mt-4 flex flex-wrap gap-3">
-                      {eventTypes.map((type) => (
-                        <button
-                          key={type}
-                          type="button"
-                          className="rounded-3xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-600"
-                        >
-                          {type}
-                        </button>
-                      ))}
-                      {eventTypes.length === 0 ? <p className="text-sm text-slate-500">Your event types will appear after you send enquiries.</p> : null}
-                    </div>
-                  </div>
+                   <div className="mt-8">
+                     <div className="flex items-center justify-between">
+                       <h2 className="text-xl font-semibold text-slate-950">What type of event are you planning?</h2>
+                       <button type="button" className="text-sm font-semibold text-blue-600 hover:underline">
+                         View all
+                       </button>
+                     </div>
+                      <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                        {(eventTypes.length ? eventTypes : EVENT_TYPES).map((type, index) => (
+                          <button
+                            key={type}
+                            type="button"
+                            className="group relative aspect-[4/3] overflow-hidden rounded-2xl"
+                          >
+                            <Image
+                              src={getEventTypeImage(type, index)}
+                              alt={type}
+                              fill
+                              className="object-cover transition-transform duration-300 group-hover:scale-105"
+                              sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+                            <div className="absolute bottom-0 left-0 p-4 text-white">
+                              <p className="text-sm font-semibold">{type}</p>
+                            </div>
+                          </button>
+                        ))}
+                       {eventTypes.length === 0 ? <p className="text-sm text-slate-500 col-span-full">Your event types will appear after you send enquiries.</p> : null}
+                     </div>
+                   </div>
                 </div>
 
                 <div className="rounded-[32px] bg-white p-6 shadow-sm">

@@ -1,6 +1,7 @@
 // Browser requests go through our Next.js route handler. This keeps the browser
 // same-origin on Vercel and avoids relying on the backend's CORS configuration.
 import type { Vendor } from "@/data/vendors";
+import { pickImageForCategory } from "@/lib/images";
 
 const API_BASE_URL = "/api/backend";
 
@@ -42,6 +43,7 @@ export type VendorProfile = {
   category: string;
   location: string;
   priceRange?: string | null;
+  description?: string | null;
   availability?: VendorAvailability;
   isPublished?: boolean;
 };
@@ -266,7 +268,8 @@ export async function getVendors(token?: string) {
         rating: Number(item.averageRating ?? profile?.averageRating ?? item.rating ?? 0),
         reviews: Number(item.totalReviews ?? profile?.totalReviews ?? item.reviews ?? 0),
         startingPrice: String(item.priceRange ?? profile?.priceRange ?? item.startingPrice ?? "Contact for pricing"),
-        image: String(item.profileImage ?? profile?.profileImage ?? item.avatar ?? user?.avatar ?? item.image ?? ""),
+        image: String(item.profileImage ?? profile?.profileImage ?? item.avatar ?? user?.avatar ?? item.image ?? pickImageForCategory(String(item.category ?? profile?.category ?? ""), String(item.userId ?? item.id ?? user?.id ?? ""))),
+        description: String(item.description ?? profile?.description ?? ""),
         isPublished: Boolean(item.isPublished ?? profile?.isPublished ?? false),
       };
     }).filter((vendor): vendor is Vendor => vendor !== null && Boolean(vendor.id));
@@ -314,7 +317,7 @@ export async function getMyVendorProfile(token?: string) {
   return { data: result.data?.data ?? null, error: result.error } as ApiResult<VendorProfile>;
 }
 
-export async function updateMyVendorProfile(data: Pick<VendorProfile, "businessName" | "category" | "location" | "priceRange">, token?: string) {
+export async function updateMyVendorProfile(data: Pick<VendorProfile, "businessName" | "category" | "location" | "priceRange" | "description">, token?: string) {
   const result = await apiRequest<{ success: boolean; data: VendorProfile }>("/api/vendor/profile", {
     method: "PUT",
     headers: getAuthHeaders(token),
@@ -453,12 +456,20 @@ export async function updateProfile(data: Partial<User>, token?: string) {
   };
 }
 
-export async function uploadProfileImage(file: File, token?: string) {
-  void file;
-  void token;
-  // Image uploads are disabled in the frontend. Return a safe no-op result
-  // so callers that still reference this function will not fail.
-  return { data: null, error: "Profile image uploads are disabled" } as ApiResult<{ avatar: string }>;
+export async function uploadProfileImage(file: File, token?: string): Promise<ApiResult<{ avatar: string }>> {
+  const form = new FormData();
+  form.append("image", file);
+
+  const headers: Record<string, string> = {};
+  const auth = getAuthHeaders(token);
+  if (auth.Authorization) headers.Authorization = auth.Authorization;
+
+  return apiRequest<{ avatar: string }>("/api/auth/avatar", {
+    method: "POST",
+    headers,
+    body: form,
+    credentials: "include",
+  });
 }
 
 export async function getCurrentUser(token?: string) {
