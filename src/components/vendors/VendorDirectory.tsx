@@ -58,6 +58,7 @@ export function VendorDirectory() {
       return;
     }
     setBookingNotice(null);
+    setBackendError(null);
     setBookingVendor(vendor);
   }
 

@@ -9,7 +9,7 @@ import { VendorCard } from "@/components/vendors/VendorCard";
 import { BookingModal } from "@/components/vendors/BookingModal";
 import { VendorDirectory } from "@/components/vendors/VendorDirectory";
 import type { Vendor as DirectoryVendor } from "@/data/vendors";
-import { Search } from "@/components/landing/icons";
+import { Search, Bell } from "@/components/landing/icons";
 import { EnquiryChat } from "@/components/enquiries/EnquiryChat";
 
 type PlannerSection =
@@ -289,6 +289,7 @@ export default function DashboardClient() {
   const [activeSection, setActiveSection] = useState<PlannerSection>("Dashboard");
   const [bookingVendor, setBookingVendor] = useState<DirectoryVendor | null>(null);
   const [bookingNotice, setBookingNotice] = useState<string | null>(null);
+  const [bookingError, setBookingError] = useState<string | null>(null);
   const [vendorList, setVendorList] = useState<DirectoryVendor[]>([]);
   const [unavailableDates, setUnavailableDates] = useState<string[]>([]);
   const [availabilityDate, setAvailabilityDate] = useState("");
@@ -297,6 +298,16 @@ export default function DashboardClient() {
   const [enquiryError, setEnquiryError] = useState<string | null>(null);
   const [isLoadingEnquiries, setIsLoadingEnquiries] = useState(false);
   const [chatEnquiry, setChatEnquiry] = useState<Enquiry | null>(null);
+  const [readChatIds, setReadChatIds] = useState<Set<string>>(new Set());
+
+  function openChat(enquiry: Enquiry) {
+    setReadChatIds((current) => {
+      const next = new Set(current);
+      next.add(enquiry.id);
+      return next;
+    });
+    setChatEnquiry(enquiry);
+  }
   const [profileForm, setProfileForm] = useState({ firstName: "", lastName: "" });
   const [vendorProfileForm, setVendorProfileForm] = useState({ businessName: "", category: "", location: "", priceRange: "" });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -466,6 +477,7 @@ export default function DashboardClient() {
   const currentEnquiries = enquiryList(enquiries);
   const pendingEnquiries = currentEnquiries.filter((enquiry) => enquiry.status?.toUpperCase?.() === "NEW");
   const acceptedEnquiries = currentEnquiries.filter((enquiry) => enquiry.status?.toUpperCase?.() === "BOOKED");
+  const unreadMessageCount = currentEnquiries.filter((enquiry) => enquiry.chatRoom?.id && !readChatIds.has(enquiry.id)).length;
   const statusCards = [
     { title: "Waiting for Response", subtitle: "Awaiting vendor reply", value: pendingEnquiries.length, accent: "bg-amber-100 text-amber-700" },
     { title: "Accepted", subtitle: "Confirmed bookings", value: acceptedEnquiries.length, accent: "bg-emerald-100 text-emerald-700" },
@@ -679,7 +691,7 @@ export default function DashboardClient() {
                             <span>{enquiry.budget || "Budget not specified"}</span>
                             <span className="rounded-full bg-white px-3 py-1 text-slate-700 shadow-sm">{enquiry.status}</span>
                             {enquiry.status === "NEW" ? <><button type="button" onClick={() => reviewEnquiry(enquiry.id, "ACCEPTED")} className="rounded-full bg-emerald-600 px-3 py-1 font-semibold text-white">Accept</button><button type="button" onClick={() => reviewEnquiry(enquiry.id, "DECLINED")} className="rounded-full border border-slate-200 bg-white px-3 py-1 font-semibold text-slate-700">Decline</button></> : null}
-                            {enquiry.chatRoom?.id ? <button type="button" onClick={() => setChatEnquiry(enquiry)} className="rounded-full bg-blue-600 px-3 py-1 font-semibold text-white">Chat</button> : null}
+                             {enquiry.chatRoom?.id ? <button type="button" onClick={() => openChat(enquiry)} className="rounded-full bg-blue-600 px-3 py-1 font-semibold text-white">Chat</button> : null}
                           </div>
                         </div>
                       </div>
@@ -732,7 +744,7 @@ export default function DashboardClient() {
 
                   <div className="mt-6 space-y-4">
                     {vendorEnquiries.filter((enquiry) => enquiry.chatRoom?.id).map((enquiry) => (
-                      <button type="button" key={enquiry.id} onClick={() => setChatEnquiry(enquiry)} className="w-full rounded-[28px] border border-slate-200 bg-slate-50 p-5 text-left">
+                       <button type="button" key={enquiry.id} onClick={() => openChat(enquiry)} className="w-full rounded-[28px] border border-slate-200 bg-slate-50 p-5 text-left">
                         <div className="flex items-start justify-between gap-4">
                           <div>
                             <p className="text-sm font-semibold text-slate-950">{contactName(enquiry, "VENDOR")}</p>
@@ -984,18 +996,33 @@ export default function DashboardClient() {
 
         <section className="space-y-6">
           <header className="rounded-[32px] bg-white p-6 shadow-sm">
-            <div>
-              <p className="text-sm font-medium text-slate-500">Good Morning, {greetingName} 👋</p>
-              <h1 className="mt-3 text-3xl font-semibold text-slate-950">
-                {activeSection}
-              </h1>
-              <p className="mt-2 text-sm text-slate-500">
-                {activeSection === "Dashboard" && "Quickly manage your events, enquiries, and vendor matches."}
-                {activeSection === "Discover Vendors" && "Browse vendors by category, location, and rating."}
-                {activeSection === "Messages" && "View vendor enquiries and system messages in one place."}
-                {activeSection === "Profile" && "Manage your planner profile and account details."}
-                {activeSection === "Settings" && "Adjust your notification, privacy, and account preferences."}
-              </p>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-slate-500">Good Morning, {greetingName} 👋</p>
+                <h1 className="mt-3 text-3xl font-semibold text-slate-950">
+                  {activeSection}
+                </h1>
+                <p className="mt-2 text-sm text-slate-500">
+                  {activeSection === "Dashboard" && "Quickly manage your events, enquiries, and vendor matches."}
+                  {activeSection === "Discover Vendors" && "Browse vendors by category, location, and rating."}
+                  {activeSection === "Messages" && "View vendor enquiries and system messages in one place."}
+                  {activeSection === "Profile" && "Manage your planner profile and account details."}
+                  {activeSection === "Settings" && "Adjust your notification, privacy, and account preferences."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveSection("Messages")}
+                className="relative rounded-full border border-slate-200 bg-slate-50 p-2.5 text-slate-700 transition hover:bg-slate-100"
+                aria-label="Notifications"
+              >
+                <Bell className="h-5 w-5" />
+                {unreadMessageCount > 0 ? (
+                  <span className="absolute -top-1 -right-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-blue-600 px-1 text-xs font-semibold text-white">
+                    {unreadMessageCount > 99 ? "99+" : unreadMessageCount}
+                  </span>
+                ) : null}
+              </button>
             </div>
           </header>
 
@@ -1092,7 +1119,12 @@ export default function DashboardClient() {
                       vendor={vendor}
                       compact
                       onBook={(selectedVendor) => {
+                        setBookingError(null);
                         setBookingNotice(null);
+                        if (!user || user.role.toUpperCase() !== "PLANNER") {
+                          setBookingError("Only planner accounts can send booking requests.");
+                          return;
+                        }
                         setBookingVendor(selectedVendor);
                       }}
                     />
@@ -1100,6 +1132,7 @@ export default function DashboardClient() {
                   {recommendedVendors.length === 0 ? <p className="text-sm text-slate-500">No vendor listings are available yet.</p> : null}
                 </div>
                 {bookingNotice ? <p role="status" className="fixed bottom-5 right-5 z-50 max-w-sm rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800 shadow-lg">{bookingNotice}</p> : null}
+              {bookingError ? <p role="alert" className="fixed bottom-5 right-5 z-50 max-w-sm rounded-2xl border border-yellow-200 bg-yellow-50 p-4 text-sm font-medium text-yellow-900 shadow-lg">{bookingError}</p> : null}
               </section>
             </>
           ) : activeSection === "Discover Vendors" ? (
@@ -1129,7 +1162,7 @@ export default function DashboardClient() {
                         <div className="flex flex-col items-start gap-2 text-sm text-slate-500 sm:items-end">
                           <span>{enquiry.budget || "Budget not specified"}</span>
                           <span className="rounded-full bg-white px-3 py-1 text-slate-700 shadow-sm">{enquiry.status}</span>
-                          {enquiry.chatRoom?.id ? <button type="button" onClick={() => setChatEnquiry(enquiry)} className="rounded-full bg-blue-600 px-3 py-1 font-semibold text-white">Chat</button> : null}
+                           {enquiry.chatRoom?.id ? <button type="button" onClick={() => openChat(enquiry)} className="rounded-full bg-blue-600 px-3 py-1 font-semibold text-white">Chat</button> : null}
                         </div>
                       </div>
                     </div>
