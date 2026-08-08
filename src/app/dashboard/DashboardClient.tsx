@@ -12,7 +12,7 @@ import type { Vendor as DirectoryVendor } from "@/data/vendors";
 import { Search, Bell } from "@/components/landing/icons";
 import Image from "next/image";
 import { EnquiryChat } from "@/components/enquiries/EnquiryChat";
-import { EVENT_TYPE_IMAGES, FALLBACK_AVATAR_IMAGE, FALLBACK_VENDOR_IMAGE } from "@/lib/images";
+import { FALLBACK_AVATAR_IMAGE, FALLBACK_VENDOR_IMAGE, getEventTypeImage } from "@/lib/images";
 
 type PlannerSection =
   | "Dashboard"
@@ -1078,26 +1078,26 @@ export default function DashboardClient() {
                          View all
                        </button>
                      </div>
-                     <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                       {(eventTypes.length ? eventTypes : EVENT_TYPES).map((type) => (
-                         <button
-                           key={type}
-                           type="button"
-                           className="group relative aspect-[4/3] overflow-hidden rounded-2xl"
-                         >
-                           <Image
-                             src={EVENT_TYPE_IMAGES[type] ?? EVENT_TYPE_IMAGES["Corporate Event"]}
-                             alt={type}
-                             fill
-                             className="object-cover transition-transform duration-300 group-hover:scale-105"
-                             sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
-                           />
-                           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
-                           <div className="absolute bottom-0 left-0 p-4 text-white">
-                             <p className="text-sm font-semibold">{type}</p>
-                           </div>
-                         </button>
-                       ))}
+                      <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                        {(eventTypes.length ? eventTypes : EVENT_TYPES).map((type, index) => (
+                          <button
+                            key={type}
+                            type="button"
+                            className="group relative aspect-[4/3] overflow-hidden rounded-2xl"
+                          >
+                            <Image
+                              src={getEventTypeImage(type, index)}
+                              alt={type}
+                              fill
+                              className="object-cover transition-transform duration-300 group-hover:scale-105"
+                              sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+                            <div className="absolute bottom-0 left-0 p-4 text-white">
+                              <p className="text-sm font-semibold">{type}</p>
+                            </div>
+                          </button>
+                        ))}
                        {eventTypes.length === 0 ? <p className="text-sm text-slate-500 col-span-full">Your event types will appear after you send enquiries.</p> : null}
                      </div>
                    </div>
