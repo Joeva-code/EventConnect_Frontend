@@ -10,6 +10,7 @@ import { BookingModal } from "@/components/vendors/BookingModal";
 import { VendorDirectory } from "@/components/vendors/VendorDirectory";
 import type { Vendor as DirectoryVendor } from "@/data/vendors";
 import { Search, Bell } from "@/components/landing/icons";
+import Image from "next/image";
 import { EnquiryChat } from "@/components/enquiries/EnquiryChat";
 
 type PlannerSection =
@@ -25,6 +26,26 @@ const plannerNavItems: Array<{ id: PlannerSection; label: string }> = [
   { id: "Messages", label: "Messages" },
   { id: "Profile", label: "Profile" },
   { id: "Settings", label: "Settings" },
+];
+
+const EVENT_TYPE_IMAGES: Record<string, string> = {
+  Wedding: "https://images.unsplash.com/photo-1519225421980-715cb0215aed?auto=format&fit=crop&w=800&q=80",
+  Birthday: "https://images.unsplash.com/photo-1530103862676-de8c9debad1d?auto=format&fit=crop&w=800&q=80",
+  "Naming Ceremony": "https://images.unsplash.com/photo-1519689680058-324335eb6361?auto=format&fit=crop&w=800&q=80",
+  Conference: "https://images.unsplash.com/photo-1544531586-fde5298cdd40?auto=format&fit=crop&w=800&q=80",
+  "Book Launch": "https://images.unsplash.com/photo-1524995997946-a1c2e315a2f8?auto=format&fit=crop&w=800&q=80",
+  Graduation: "https://images.unsplash.com/photo-1523050854058-8df90110a5f1?auto=format&fit=crop&w=800&q=80",
+  "Corporate Event": "https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=800&q=80",
+};
+
+const EVENT_TYPES = [
+  "Wedding",
+  "Birthday",
+  "Naming Ceremony",
+  "Conference",
+  "Book Launch",
+  "Graduation",
+  "Corporate Event",
 ];
 
 const statusCards = [
@@ -1060,26 +1081,36 @@ export default function DashboardClient() {
                     ))}
                   </div>
 
-                  <div className="mt-8">
-                    <div className="flex items-center justify-between">
-                      <h2 className="text-xl font-semibold text-slate-950">What type of event are you planning?</h2>
-                      <button type="button" className="text-sm font-semibold text-blue-600 hover:underline">
-                        View all
-                      </button>
-                    </div>
-                    <div className="mt-4 flex flex-wrap gap-3">
-                      {eventTypes.map((type) => (
-                        <button
-                          key={type}
-                          type="button"
-                          className="rounded-3xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-600"
-                        >
-                          {type}
-                        </button>
-                      ))}
-                      {eventTypes.length === 0 ? <p className="text-sm text-slate-500">Your event types will appear after you send enquiries.</p> : null}
-                    </div>
-                  </div>
+                   <div className="mt-8">
+                     <div className="flex items-center justify-between">
+                       <h2 className="text-xl font-semibold text-slate-950">What type of event are you planning?</h2>
+                       <button type="button" className="text-sm font-semibold text-blue-600 hover:underline">
+                         View all
+                       </button>
+                     </div>
+                     <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                       {(eventTypes.length ? eventTypes : EVENT_TYPES).map((type) => (
+                         <button
+                           key={type}
+                           type="button"
+                           className="group relative aspect-[4/3] overflow-hidden rounded-2xl"
+                         >
+                           <Image
+                             src={EVENT_TYPE_IMAGES[type] ?? EVENT_TYPE_IMAGES["Corporate Event"]}
+                             alt={type}
+                             fill
+                             className="object-cover transition-transform duration-300 group-hover:scale-105"
+                             sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
+                           />
+                           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+                           <div className="absolute bottom-0 left-0 p-4 text-white">
+                             <p className="text-sm font-semibold">{type}</p>
+                           </div>
+                         </button>
+                       ))}
+                       {eventTypes.length === 0 ? <p className="text-sm text-slate-500 col-span-full">Your event types will appear after you send enquiries.</p> : null}
+                     </div>
+                   </div>
                 </div>
 
                 <div className="rounded-[32px] bg-white p-6 shadow-sm">
