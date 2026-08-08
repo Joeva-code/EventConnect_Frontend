@@ -76,8 +76,7 @@ type VendorSection =
   | "Bookings"
   | "Messages"
   | "Availability"
-  | "Profile"
-  | "Payouts";
+  | "Profile";
 
 const vendorNavItems: VendorSection[] = [
   "Dashboard",
@@ -86,7 +85,6 @@ const vendorNavItems: VendorSection[] = [
   "Messages",
   "Availability",
   "Profile",
-  "Payouts",
 ];
 
 function enquiryList(value: unknown): Enquiry[] {
@@ -217,24 +215,6 @@ const vendorMessages = [
     subject: "Photo package update",
     preview: "I want to add drone coverage to my package.",
     time: "Yesterday",
-  },
-];
-
-const vendorPayouts = [
-  {
-    period: "July 2026",
-    amount: "₦860,000",
-    status: "Paid",
-  },
-  {
-    period: "June 2026",
-    amount: "₦1,020,000",
-    status: "Paid",
-  },
-  {
-    period: "May 2026",
-    amount: "₦730,000",
-    status: "Processing",
   },
 ];
 
@@ -878,22 +858,9 @@ export default function DashboardClient() {
                     </div>
                   </div>
                 </div>
-              ) : (
-                <div className="rounded-[32px] bg-white p-6 shadow-sm">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-500">Payouts</p>
-                      <h2 className="mt-1 text-2xl font-semibold text-slate-950">Payment history</h2>
-                    </div>
-                    <button type="button" className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
-                      Download report
-                    </button>
-                  </div>
-
-                  <p className="mt-6 rounded-[28px] border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">Payout data will appear here when the backend payout endpoint is available.</p>
-                </div>
-              )}
-            </section>
+              ) : null
+            }
+             </section>
           </div>
         </main>
 
