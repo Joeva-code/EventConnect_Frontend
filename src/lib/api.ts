@@ -6,9 +6,9 @@ const API_BASE_URL = "/api/backend";
 
 const CATEGORY_IMAGES: Record<string, string[]> = {
   "Decoration & Styling": [
-    "https://images.unsplash.com/photo-1478146059778-26028b07395a?auto=format&fit=crop&w=800&q=80",
+    "https://images.unsplash.com/photo-1519225421980-715cb0215aed?auto=format&fit=crop&w=800&q=80",
+    "https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?auto=format&fit=crop&w=800&q=80",
     "https://images.unsplash.com/photo-1527529482837-469817a48964?auto=format&fit=crop&w=800&q=80",
-    "https://images.unsplash.com/photo-1530103862676-de8c9debad1d?auto=format&fit=crop&w=800&q=80",
   ],
   "Catering & Cakes": [
     "https://images.unsplash.com/photo-1555244162-803834f70033?auto=format&fit=crop&w=800&q=80",
