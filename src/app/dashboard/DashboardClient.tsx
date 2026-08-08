@@ -76,7 +76,8 @@ type VendorSection =
   | "Bookings"
   | "Messages"
   | "Availability"
-  | "Profile";
+  | "Profile"
+  | "Portfolio";
 
 const vendorNavItems: VendorSection[] = [
   "Dashboard",
@@ -85,6 +86,7 @@ const vendorNavItems: VendorSection[] = [
   "Messages",
   "Availability",
   "Profile",
+  "Portfolio",
 ];
 
 function enquiryList(value: unknown): Enquiry[] {
@@ -215,6 +217,17 @@ const vendorMessages = [
     subject: "Photo package update",
     preview: "I want to add drone coverage to my package.",
     time: "Yesterday",
+  },
+];
+
+const vendorPortfolio = [
+  {
+    title: "Elegant Wedding Decor",
+    description: "Marble centerpieces and custom lighting for a 200 person wedding.",
+  },
+  {
+    title: "Corporate Gala Set",
+    description: "Stage design and AV support for a multinational launch event.",
   },
 ];
 
@@ -857,6 +870,20 @@ export default function DashboardClient() {
                       </div>
                     </div>
                   </div>
+                </div>
+              ) : activeVendorSection === "Portfolio" ? (
+                <div className="rounded-[32px] bg-white p-6 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-500">Portfolio</p>
+                      <h2 className="mt-1 text-2xl font-semibold text-slate-950">Showcase your work</h2>
+                    </div>
+                    <button type="button" className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
+                      Add new item
+                    </button>
+                  </div>
+
+                  <p className="mt-6 rounded-[28px] border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">Portfolio data will appear here when the backend portfolio endpoint is available.</p>
                 </div>
               ) : null
             }
