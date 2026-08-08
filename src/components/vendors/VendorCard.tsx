@@ -2,9 +2,6 @@ import Image from "next/image";
 import { MapPin, Star } from "@/components/landing/icons";
 import type { Vendor } from "@/data/vendors";
 
-const FALLBACK_VENDOR_IMAGE =
-  "https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=800&q=80";
-
 export function VendorCard({
   vendor,
   compact = false,
@@ -14,6 +11,8 @@ export function VendorCard({
   compact?: boolean;
   onBook?: (vendor: Vendor) => void;
 }) {
+  const hasImage = Boolean(vendor.image);
+
   return (
     <div
       className={`group overflow-hidden rounded-[28px] border border-slate-100 bg-gradient-to-br from-white via-slate-50 to-white/95 transition hover:shadow-lg ${
@@ -21,13 +20,24 @@ export function VendorCard({
       }`}
     >
       <div className={`relative w-full overflow-hidden ${compact ? "aspect-[3/2]" : "aspect-[4/3]"}`}>
-        <Image
-          src={vendor.image || FALLBACK_VENDOR_IMAGE}
-          alt={vendor.name}
-          fill
-          className="object-cover transition-transform duration-300 group-hover:scale-105"
-          sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-        />
+        {hasImage ? (
+          <Image
+            src={vendor.image}
+            alt={vendor.name}
+            fill
+            className="object-cover transition-transform duration-300 group-hover:scale-105"
+            sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-slate-100 text-2xl font-semibold text-slate-500">
+            {vendor.name
+              .split(" ")
+              .map((part) => part[0])
+              .join("")
+              .slice(0, 2)
+              .toUpperCase()}
+          </div>
+        )}
         <span
           className={`absolute left-3 top-3 rounded-full bg-white/95 text-[11px] font-semibold text-slate-700 shadow-sm ${
             compact ? "px-2 py-0.5" : "px-3 py-1"
@@ -37,10 +47,13 @@ export function VendorCard({
         </span>
       </div>
 
-      <div className={compact ? "p-4" : "p-5"}>
-        <h3 className={compact ? "text-base font-semibold text-slate-950" : "text-lg font-semibold text-slate-950"}>
-          {vendor.name}
-        </h3>
+        <div className={compact ? "p-4" : "p-5"}>
+          <h3 className={compact ? "text-base font-semibold text-slate-950" : "text-lg font-semibold text-slate-950"}>
+            {vendor.name}
+          </h3>
+          {vendor.description ? (
+            <p className="mt-1 line-clamp-2 text-sm text-slate-500">{vendor.description}</p>
+          ) : null}
 
         <div className="mt-2 flex items-center gap-1.5 text-sm text-slate-500">
           <MapPin className="h-4 w-4" />

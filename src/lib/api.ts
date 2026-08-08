@@ -42,6 +42,7 @@ export type VendorProfile = {
   category: string;
   location: string;
   priceRange?: string | null;
+  description?: string | null;
   availability?: VendorAvailability;
   isPublished?: boolean;
 };
@@ -267,6 +268,7 @@ export async function getVendors(token?: string) {
         reviews: Number(item.totalReviews ?? profile?.totalReviews ?? item.reviews ?? 0),
         startingPrice: String(item.priceRange ?? profile?.priceRange ?? item.startingPrice ?? "Contact for pricing"),
         image: String(item.profileImage ?? profile?.profileImage ?? item.avatar ?? user?.avatar ?? item.image ?? ""),
+        description: String(item.description ?? profile?.description ?? ""),
         isPublished: Boolean(item.isPublished ?? profile?.isPublished ?? false),
       };
     }).filter((vendor): vendor is Vendor => vendor !== null && Boolean(vendor.id));
@@ -314,7 +316,7 @@ export async function getMyVendorProfile(token?: string) {
   return { data: result.data?.data ?? null, error: result.error } as ApiResult<VendorProfile>;
 }
 
-export async function updateMyVendorProfile(data: Pick<VendorProfile, "businessName" | "category" | "location" | "priceRange">, token?: string) {
+export async function updateMyVendorProfile(data: Pick<VendorProfile, "businessName" | "category" | "location" | "priceRange" | "description">, token?: string) {
   const result = await apiRequest<{ success: boolean; data: VendorProfile }>("/api/vendor/profile", {
     method: "PUT",
     headers: getAuthHeaders(token),

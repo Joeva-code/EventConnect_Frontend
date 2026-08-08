@@ -309,11 +309,12 @@ export default function DashboardClient() {
     setChatEnquiry(enquiry);
   }
   const [profileForm, setProfileForm] = useState({ firstName: "", lastName: "" });
-  const [vendorProfileForm, setVendorProfileForm] = useState({ businessName: "", category: "", location: "", priceRange: "" });
+  const [vendorProfileForm, setVendorProfileForm] = useState({ businessName: "", category: "", location: "", priceRange: "", description: "" });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [vendorProfileSaved, setVendorProfileSaved] = useState(false);
 
   useEffect(() => {
     const authUser = getAuthUser();
@@ -365,6 +366,7 @@ export default function DashboardClient() {
               category: result.data.category ?? "",
               location: result.data.location ?? "",
               priceRange: result.data.priceRange ?? "",
+              description: result.data.description ?? "",
             });
           }
         });
@@ -791,9 +793,12 @@ export default function DashboardClient() {
                           <input value={vendorProfileForm.location} onChange={(e) => setVendorProfileForm((profile) => ({ ...profile, location: e.target.value }))} placeholder="Location" className="rounded-2xl border border-slate-200 bg-white px-4 py-3" />
                           <input value={vendorProfileForm.priceRange} onChange={(e) => setVendorProfileForm((profile) => ({ ...profile, priceRange: e.target.value }))} placeholder="Price range (optional)" className="rounded-2xl border border-slate-200 bg-white px-4 py-3" />
                         </div>
+                        <textarea value={vendorProfileForm.description} onChange={(e) => setVendorProfileForm((profile) => ({ ...profile, description: e.target.value }))} placeholder="Describe your services, experience, and what makes you stand out." rows={4} className="mt-3 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm" />
                         <button type="button" onClick={saveVendorProfile} disabled={isSaving || !vendorProfileForm.businessName || !vendorProfileForm.category || !vendorProfileForm.location} className="mt-4 rounded-3xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300">
-                          {isSaving ? "Publishing..." : "Save and publish listing"}
+                          {isSaving ? "Saving..." : "Save and publish listing"}
                         </button>
+                        {vendorProfileSaved ? <p className="mt-2 text-sm text-emerald-700">Listing saved and published.</p> : null}
+                        {saveError ? <p className="mt-2 text-sm text-rose-600">{saveError}</p> : null}
                       </div>
                       <div className="grid gap-2 sm:grid-cols-[1fr_1fr]">
                         <input
@@ -895,10 +900,14 @@ export default function DashboardClient() {
   async function saveVendorProfile() {
     setIsSaving(true);
     setSaveError(null);
+    setVendorProfileSaved(false);
     const result = await updateMyVendorProfile(vendorProfileForm, getAuthToken() ?? undefined);
     setIsSaving(false);
     if (result.error) {
       setSaveError(result.error);
+    } else {
+      setVendorProfileSaved(true);
+      setTimeout(() => setVendorProfileSaved(false), 3000);
     }
   }
 
