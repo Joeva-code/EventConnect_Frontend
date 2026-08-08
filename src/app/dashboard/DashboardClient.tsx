@@ -12,6 +12,7 @@ import type { Vendor as DirectoryVendor } from "@/data/vendors";
 import { Search, Bell } from "@/components/landing/icons";
 import Image from "next/image";
 import { EnquiryChat } from "@/components/enquiries/EnquiryChat";
+import { EVENT_TYPE_IMAGES, FALLBACK_AVATAR_IMAGE, FALLBACK_VENDOR_IMAGE } from "@/lib/images";
 
 type PlannerSection =
   | "Dashboard"
@@ -27,16 +28,6 @@ const plannerNavItems: Array<{ id: PlannerSection; label: string }> = [
   { id: "Profile", label: "Profile" },
   { id: "Settings", label: "Settings" },
 ];
-
-const EVENT_TYPE_IMAGES: Record<string, string> = {
-  Wedding: "https://images.unsplash.com/photo-1519225421980-715cb0215aed?auto=format&fit=crop&w=800&q=80",
-  Birthday: "https://images.unsplash.com/photo-1530103862676-de8c9debad1d?auto=format&fit=crop&w=800&q=80",
-  "Naming Ceremony": "https://images.unsplash.com/photo-1519689680058-324335eb6361?auto=format&fit=crop&w=800&q=80",
-  Conference: "https://images.unsplash.com/photo-1544531586-fde5298cdd40?auto=format&fit=crop&w=800&q=80",
-  "Book Launch": "https://images.unsplash.com/photo-1524995997946-a1c2e315a2f8?auto=format&fit=crop&w=800&q=80",
-  Graduation: "https://images.unsplash.com/photo-1523050854058-8df90110a5f1?auto=format&fit=crop&w=800&q=80",
-  "Corporate Event": "https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=800&q=80",
-};
 
 const EVENT_TYPES = [
   "Wedding",
@@ -549,12 +540,17 @@ export default function DashboardClient() {
               <div className="mb-6 rounded-[28px] bg-slate-50 p-5">
                 <div className="flex items-center gap-3">
                   {user.avatar ? (
-                    <img
-                      src={user.avatar}
-                      alt={`${vendorName} profile`}
-                      className="h-12 w-12 rounded-full object-cover"
-                    />
-                  ) : (
+                     <img
+                       src={user.avatar}
+                       alt={`${vendorName} profile`}
+                       className="h-12 w-12 rounded-full object-cover"
+                       onError={(e) => {
+                         const target = e.currentTarget;
+                         target.onerror = null;
+                         target.src = FALLBACK_AVATAR_IMAGE;
+                       }}
+                     />
+                   ) : (
                     <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white shadow-sm">
                       {(() => {
                         const initials = [user.firstName, user.lastName]
@@ -968,6 +964,11 @@ export default function DashboardClient() {
                   src={user.avatar}
                   alt={`${user.firstName ?? "User"} profile"`}
                   className="h-12 w-12 rounded-full object-cover"
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    target.onerror = null;
+                    target.src = FALLBACK_AVATAR_IMAGE;
+                  }}
                 />
               ) : (
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white shadow-sm">

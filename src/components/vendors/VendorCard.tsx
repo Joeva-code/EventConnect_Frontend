@@ -1,3 +1,4 @@
+import { useState } from "react";
 import Image from "next/image";
 import { MapPin, Star } from "@/components/landing/icons";
 import type { Vendor } from "@/data/vendors";
@@ -12,6 +13,9 @@ export function VendorCard({
   onBook?: (vendor: Vendor) => void;
 }) {
   const hasImage = Boolean(vendor.image);
+  const [imageError, setImageError] = useState(false);
+
+  const showImage = hasImage && !imageError;
 
   return (
     <div
@@ -20,13 +24,14 @@ export function VendorCard({
       }`}
     >
       <div className={`relative w-full overflow-hidden ${compact ? "aspect-[3/2]" : "aspect-[4/3]"}`}>
-        {hasImage ? (
+        {showImage ? (
           <Image
             src={vendor.image}
             alt={vendor.name}
             fill
             className="object-cover transition-transform duration-300 group-hover:scale-105"
             sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+            onError={() => setImageError(true)}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-slate-100 text-2xl font-semibold text-slate-500">
