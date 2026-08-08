@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { clearAuth, getAuthToken, getAuthUser, getEnquiries, getMyAvailability, getMyVendorProfile, getVendors, saveAuthUser, type Enquiry, type User, updateEnquiryStatus, updateMyAvailability, updateMyVendorProfile, updateProfile } from "@/lib/api";
+import { clearAuth, getAuthToken, getAuthUser, getEnquiries, getMyAvailability, getMyVendorProfile, getVendors, saveAuthUser, type Enquiry, type User, updateEnquiryStatus, updateMyAvailability, updateMyVendorProfile, updateProfile, uploadProfileImage } from "@/lib/api";
 import { Footer } from "@/components/landing/Footer";
 import { Header } from "@/components/landing/Header";
 import { VendorCard } from "@/components/vendors/VendorCard";
@@ -455,7 +455,23 @@ export default function DashboardClient() {
     setSaveError(null);
 
     try {
-      // Profile image uploads are disabled. Only update textual profile fields.
+      let updatedUser = { ...(user as User) };
+
+      if (selectedFile) {
+        const uploadResult = await uploadProfileImage(selectedFile, getAuthToken() ?? undefined);
+        if (uploadResult.error) {
+          setSaveError(uploadResult.error);
+          setIsSaving(false);
+          return;
+        }
+        const avatarUrl = uploadResult.data?.avatar;
+        if (avatarUrl) {
+          updatedUser = { ...updatedUser, avatar: avatarUrl };
+          saveAuthUser(updatedUser);
+          setUser(updatedUser);
+        }
+      }
+
       const payload: Partial<User> = {
         firstName: profileForm.firstName,
         lastName: profileForm.lastName,
@@ -468,9 +484,9 @@ export default function DashboardClient() {
         return;
       }
 
-      const updatedUser = { ...(user as User), ...(res.data as User) };
-      saveAuthUser(updatedUser);
-      setUser(updatedUser);
+      const finalUser = { ...updatedUser, ...(res.data as User) };
+      saveAuthUser(finalUser);
+      setUser(finalUser);
       setSelectedFile(null);
     } catch (err: any) {
       setSaveError(String(err?.message ?? err));

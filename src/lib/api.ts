@@ -504,12 +504,20 @@ export async function updateProfile(data: Partial<User>, token?: string) {
   };
 }
 
-export async function uploadProfileImage(file: File, token?: string) {
-  void file;
-  void token;
-  // Image uploads are disabled in the frontend. Return a safe no-op result
-  // so callers that still reference this function will not fail.
-  return { data: null, error: "Profile image uploads are disabled" } as ApiResult<{ avatar: string }>;
+export async function uploadProfileImage(file: File, token?: string): Promise<ApiResult<{ avatar: string }>> {
+  const form = new FormData();
+  form.append("image", file);
+
+  const headers: Record<string, string> = {};
+  const auth = getAuthHeaders(token);
+  if (auth.Authorization) headers.Authorization = auth.Authorization;
+
+  return apiRequest<{ avatar: string }>("/api/auth/avatar", {
+    method: "POST",
+    headers,
+    body: form,
+    credentials: "include",
+  });
 }
 
 export async function getCurrentUser(token?: string) {
