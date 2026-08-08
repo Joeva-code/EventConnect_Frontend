@@ -1,5 +1,7 @@
 // Browser requests go through our Next.js route handler. This keeps the browser
 // same-origin on Vercel and avoids relying on the backend's CORS configuration.
+import type { Vendor } from "@/data/vendors";
+
 const API_BASE_URL = "/api/backend";
 
 export type ApiError = {
@@ -31,17 +33,6 @@ export type User = {
   lastLogin?: string | null;
   createdAt?: string;
   updatedAt?: string;
-};
-
-export type Vendor = {
-  id: string;
-  name: string;
-  category: string;
-  location: string;
-  rating: number;
-  reviews: number;
-  startingPrice: string;
-  image: string;
 };
 
 export type VendorAvailability = { unavailableDates: string[] };
@@ -268,9 +259,7 @@ export async function getVendors(token?: string) {
       const lastName = String(user?.lastName ?? item.lastName ?? "");
       const accountName = [firstName, lastName].filter(Boolean).join(" ");
       return {
-        // Enquiries belong to the vendor account, not an optional profile row.
-        id: String(user?.id ?? item.userId ?? item.id ?? ""),
-        // The planner directory intentionally shows the name used at signup.
+        id: String(item.userId ?? item.id ?? user?.id ?? ""),
         name: String(accountName || item.name || item.businessName || profile?.businessName || "Registered vendor"),
         category: String(item.category ?? profile?.category ?? "Event services"),
         location: String(item.location ?? profile?.location ?? "Location on request"),
@@ -278,6 +267,7 @@ export async function getVendors(token?: string) {
         reviews: Number(item.totalReviews ?? profile?.totalReviews ?? item.reviews ?? 0),
         startingPrice: String(item.priceRange ?? profile?.priceRange ?? item.startingPrice ?? "Contact for pricing"),
         image: String(item.profileImage ?? profile?.profileImage ?? item.avatar ?? user?.avatar ?? item.image ?? ""),
+        isPublished: Boolean(item.isPublished ?? profile?.isPublished ?? false),
       };
     }).filter((vendor): vendor is Vendor => vendor !== null && Boolean(vendor.id));
     if (!value || typeof value !== "object") return [];

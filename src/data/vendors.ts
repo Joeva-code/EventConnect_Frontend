@@ -19,4 +19,5 @@ export type Vendor = {
   reviews: number;
   startingPrice: string;
   image: string;
+  isPublished: boolean;
 };

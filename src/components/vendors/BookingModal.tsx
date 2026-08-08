@@ -20,6 +20,10 @@ export function BookingModal({ vendor, onClose, onBooked }: BookingModalProps) {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSent, setIsSent] = useState(false);
+
+  function clearError() {
+    if (error) setError(null);
+  }
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const guests = Number(guestCount);
@@ -73,23 +77,23 @@ export function BookingModal({ vendor, onClose, onBooked }: BookingModalProps) {
         ) : <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="grid gap-1.5 text-sm font-medium text-slate-700">Event type
-              <input required value={eventType} onChange={(e) => setEventType(e.target.value)} placeholder="e.g. Wedding" className="rounded-xl border border-slate-200 px-3 py-2.5 font-normal outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10" />
+              <input required value={eventType} onChange={(e) => { setEventType(e.target.value); clearError(); }} placeholder="e.g. Wedding" className="rounded-xl border border-slate-200 px-3 py-2.5 font-normal outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10" />
             </label>
           <label className="grid gap-1.5 text-sm font-medium text-slate-700">Event date
-            <input required type="date" min={new Date().toISOString().slice(0, 10)} value={eventDate} onChange={(e) => setEventDate(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2.5 font-normal outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10" />
+            <input required type="date" min={new Date().toISOString().slice(0, 10)} value={eventDate} onChange={(e) => { setEventDate(e.target.value); clearError(); }} className="rounded-xl border border-slate-200 px-3 py-2.5 font-normal outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10" />
             </label>
             <label className="grid gap-1.5 text-sm font-medium text-slate-700">Number of guests
-              <input required type="number" min="1" value={guestCount} onChange={(e) => setGuestCount(e.target.value)} placeholder="e.g. 150" className="rounded-xl border border-slate-200 px-3 py-2.5 font-normal outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10" />
+              <input required type="number" min="1" value={guestCount} onChange={(e) => { setGuestCount(e.target.value); clearError(); }} placeholder="e.g. 150" className="rounded-xl border border-slate-200 px-3 py-2.5 font-normal outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10" />
             </label>
             <label className="grid gap-1.5 text-sm font-medium text-slate-700">Budget (optional)
-              <input type="number" min="0" step="1" value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="e.g. 500000" className="rounded-xl border border-slate-200 px-3 py-2.5 font-normal outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10" />
+              <input type="number" min="0" step="1" value={budget} onChange={(e) => { setBudget(e.target.value); clearError(); }} placeholder="e.g. 500000" className="rounded-xl border border-slate-200 px-3 py-2.5 font-normal outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10" />
             </label>
           </div>
           <label className="grid gap-1.5 text-sm font-medium text-slate-700">Event location
-            <input required value={location} onChange={(e) => setLocation(e.target.value)} placeholder="City or venue address" className="rounded-xl border border-slate-200 px-3 py-2.5 font-normal outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10" />
+            <input required value={location} onChange={(e) => { setLocation(e.target.value); clearError(); }} placeholder="City or venue address" className="rounded-xl border border-slate-200 px-3 py-2.5 font-normal outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10" />
           </label>
           <label className="grid gap-1.5 text-sm font-medium text-slate-700">Message (optional)
-            <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={3} placeholder="Tell the vendor about your plans and requirements." className="resize-none rounded-xl border border-slate-200 px-3 py-2.5 font-normal outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10" />
+            <textarea value={message} onChange={(e) => { setMessage(e.target.value); clearError(); }} rows={3} placeholder="Tell the vendor about your plans and requirements." className="resize-none rounded-xl border border-slate-200 px-3 py-2.5 font-normal outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10" />
           </label>
           {error ? <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p> : null}
           <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
