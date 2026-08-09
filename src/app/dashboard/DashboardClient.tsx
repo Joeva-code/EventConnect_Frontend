@@ -883,7 +883,14 @@ export default function DashboardClient() {
                     </button>
                   </div>
 
-                  <p className="mt-6 rounded-[28px] border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">Portfolio data will appear here when the backend portfolio endpoint is available.</p>
+                  <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                    {vendorPortfolio.map((item, index) => (
+                      <div key={index} className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+                        <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                        <p className="mt-2 text-sm text-slate-600">{item.description}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ) : null
             }
