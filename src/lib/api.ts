@@ -1,6 +1,6 @@
 // Browser requests go through our Next.js route handler. This keeps the browser
 // same-origin on Vercel and avoids relying on the backend's CORS configuration.
-import type { Vendor } from "@/data/vendors";
+import type { Vendor, PortfolioItem } from "@/data/vendors";
 import { pickImageForCategory } from "@/lib/images";
 
 const API_BASE_URL = "/api/backend";
@@ -46,6 +46,7 @@ export type VendorProfile = {
   description?: string | null;
   availability?: VendorAvailability;
   isPublished?: boolean;
+  portfolioItems?: PortfolioItem[];
 };
 
 export type BookingRequest = {
@@ -85,6 +86,144 @@ export type EnquiryMessage = {
   sender?: Pick<User, "id" | "firstName" | "lastName" | "role">;
 };
 
+export type EventStatus = "DRAFT" | "READY" | "LAUNCHED" | "COMPLETED" | "CANCELLED";
+
+export type Event = {
+  id: string;
+  name: string;
+  description?: string | null;
+  eventType: string;
+  eventDate: string;
+  location: string;
+  guestCount: number;
+  plannerId: string;
+  status: EventStatus;
+  readinessScore: number;
+  maxifyEventId?: string | null;
+  maxifyEventUrl?: string | null;
+  maxifySyncedAt?: string | null;
+  maxifyMode?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  planner?: Pick<User, "id" | "firstName" | "lastName" | "email">;
+  eventVendors?: EventVendor[];
+  tickets?: Ticket[];
+  analytics?: EventAnalytics;
+};
+
+export type EventVendorStatus = "INVITED" | "CONFIRMED" | "DECLINED";
+
+export type EventVendor = {
+  id: string;
+  eventId: string;
+  vendorId: string;
+  enquiryId?: string | null;
+  status: EventVendorStatus;
+  role?: string | null;
+  createdAt?: string;
+  vendor?: Pick<User, "id" | "firstName" | "lastName" | "email">;
+};
+
+export type TicketStatus = "ACTIVE" | "USED" | "CANCELLED";
+
+export type Ticket = {
+  id: string;
+  eventId: string;
+  attendeeId?: string | null;
+  ticketType: string;
+  ticketCode: string;
+  status: TicketStatus;
+  purchaserName: string;
+  purchaserEmail: string;
+  purchaseDate?: string;
+  checkedInAt?: string | null;
+};
+
+export type EventAnalytics = {
+  id: string;
+  eventId: string;
+  totalTickets: number;
+  totalCheckedIn: number;
+  attendanceRate: number;
+  generatedAt?: string;
+};
+
+export type EventReadiness = {
+  score: number;
+  status: string;
+  checks: Array<{
+    name: string;
+    passed: boolean;
+    points: number;
+    message?: string;
+  }>;
+  isReady: boolean;
+};
+
+export type MaxifyIntegrationInfo = {
+  mode: string;
+  isDemo: boolean;
+  isProduction: boolean;
+  providerName: string;
+  description: string;
+  event: {
+    id: string;
+    name: string;
+    status: EventStatus;
+    maxifyEventId?: string | null;
+    maxifyEventUrl?: string | null;
+    maxifySyncedAt?: string | null;
+    maxifyMode?: string;
+  };
+};
+
+export type TicketStats = {
+  eventId: string;
+  ticketTypes: Array<{
+    id: string;
+    name: string;
+    price: number;
+    currency: string;
+    totalSold: number;
+    maxCapacity: number;
+    revenue: number;
+    percentageSold: number;
+  }>;
+  totalSold: number;
+  totalRevenue: number;
+  totalCapacity: number;
+  percentageSold: number;
+};
+
+export type GuestStats = {
+  eventId: string;
+  expectedGuests: number;
+  registered: number;
+  checkedIn: number;
+  notCheckedIn: number;
+  attendanceRate: number;
+};
+
+export type AttendanceData = {
+  eventId: string;
+  summary: {
+    registered: number;
+    checkedIn: number;
+    notCheckedIn: number;
+    attendanceRate: number;
+  };
+  byTicketType: {
+    Regular: { total: number; checkedIn: number };
+    VIP: { total: number; checkedIn: number };
+  };
+  recentCheckIns: Array<{
+    id: string;
+    name: string;
+    ticketType: string;
+    checkedInAt: string;
+  }>;
+};
+
 async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<ApiResult<T>> {
   // Default to sending credentials (cookies) so deployments using HttpOnly cookies work.
   // Allow callers to override via `init.credentials`.
@@ -114,30 +253,34 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<ApiR
     json = null;
   }
 
-  if (!response.ok) {
-    let message = response.statusText || "Request failed";
+    if (!response.ok) {
+      let message = response.statusText || "Request failed";
 
-    if (typeof json === "object" && json !== null) {
-      const body = json as Record<string, unknown>;
-      if (body.message) {
-        message = String(body.message);
-      } else if (Array.isArray(body.errors) && body.errors.length > 0) {
-        message = body.errors
-          .map((error) => {
-            if (typeof error === "string") return error;
-            if (typeof error === "object" && error !== null) {
-              const details = error as Record<string, unknown>;
-              if (details.msg && details.path) return `${details.path}: ${details.msg}`;
-              if (details.msg) return String(details.msg);
-            }
-            return JSON.stringify(error);
-          })
-          .join(". ");
+      if (typeof json === "object" && json !== null) {
+        const body = json as Record<string, unknown>;
+        if (body.message) {
+          message = String(body.message);
+        } else if (Array.isArray(body.errors) && body.errors.length > 0) {
+          message = body.errors
+            .map((error) => {
+              if (typeof error === "string") return error;
+              if (typeof error === "object" && error !== null) {
+                const details = error as Record<string, unknown>;
+                if (details.msg && details.path) return `${details.path}: ${details.msg}`;
+                if (details.msg) return String(details.msg);
+              }
+              return JSON.stringify(error);
+            })
+            .join(". ");
+        }
       }
-    }
 
-    return { data: null, error: message };
-  }
+      if (response.status >= 500) {
+        console.error(`API error ${response.status}: ${message}`, { status: response.status, body: json });
+      }
+
+      return { data: null, error: message };
+    }
 
   return { data: json as T, error: null };
 }
@@ -271,6 +414,16 @@ export async function getVendors(token?: string) {
         image: String(item.profileImage ?? profile?.profileImage ?? item.avatar ?? user?.avatar ?? item.image ?? pickImageForCategory(String(item.category ?? profile?.category ?? ""), String(item.userId ?? item.id ?? user?.id ?? ""))),
         description: String(item.description ?? profile?.description ?? ""),
         isPublished: Boolean(item.isPublished ?? profile?.isPublished ?? false),
+        portfolioItems: (Array.isArray(item.portfolioItems) ? item.portfolioItems : []).map((pi: Record<string, unknown>) => ({
+          id: String(pi.id ?? ""),
+          mediaType: String(pi.mediaType ?? "IMAGE"),
+          url: String(pi.url ?? ""),
+          thumbnailUrl: typeof pi.thumbnailUrl === "string" ? pi.thumbnailUrl : undefined,
+          caption: typeof pi.caption === "string" ? pi.caption : undefined,
+          description: typeof pi.description === "string" ? pi.description : undefined,
+          priceRange: typeof pi.priceRange === "string" ? pi.priceRange : undefined,
+          sortOrder: Number(pi.sortOrder ?? 0),
+        })) as PortfolioItem[],
       };
     }).filter((vendor): vendor is Vendor => vendor !== null && Boolean(vendor.id));
     if (!value || typeof value !== "object") return [];
@@ -497,3 +650,173 @@ export async function getCurrentUser(token?: string) {
 
   return { data: null, error: "Could not fetch current user" } as ApiResult<User>;
 }
+
+export async function getVendorPortfolio(vendorId: string, token?: string) {
+  const headers: Record<string, string> = {};
+  const t = token ?? getAuthToken();
+  if (t) headers.Authorization = `Bearer ${t}`;
+
+  return apiRequest<{ portfolioItems: Array<{ id: string; mediaType: string; url: string; thumbnailUrl?: string; caption?: string; priceRange?: string; sortOrder: number }> }>(`/api/vendors/${vendorId}/portfolio`, {
+    method: "GET",
+    headers,
+  });
+}
+
+export async function createPortfolioItem(formData: FormData, token?: string) {
+  const headers: Record<string, string> = {};
+  const t = token ?? getAuthToken();
+  if (t) headers.Authorization = `Bearer ${t}`;
+
+  const result = await apiRequest<{ success: boolean; data: { id: string; mediaType: string; url: string; thumbnailUrl?: string; caption?: string; priceRange?: string; sortOrder: number } }>("/api/portfolio", {
+    method: "POST",
+    headers,
+    body: formData,
+    credentials: "include",
+  });
+  return { data: result.data?.data ?? null, error: result.error } as ApiResult<{ id: string; mediaType: string; url: string; thumbnailUrl?: string; caption?: string; priceRange?: string; sortOrder: number }>;
+}
+
+export async function updatePortfolioItem(id: string, data: { caption?: string; priceRange?: string; sortOrder?: number }, token?: string) {
+  const headers: Record<string, string> = {};
+  const t = token ?? getAuthToken();
+  if (t) headers.Authorization = `Bearer ${t}`;
+
+  const result = await apiRequest<{ success: boolean; data: { id: string; caption?: string; priceRange?: string; sortOrder?: number } }>(`/api/portfolio/${id}`, {
+    method: "PUT",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  return { data: result.data?.data ?? null, error: result.error } as ApiResult<{ id: string; caption?: string; priceRange?: string; sortOrder?: number }>;
+}
+
+export async function deletePortfolioItem(id: string, token?: string) {
+  const headers: Record<string, string> = {};
+  const t = token ?? getAuthToken();
+  if (t) headers.Authorization = `Bearer ${t}`;
+
+  const result = await apiRequest<{ success: boolean; message?: string }>(`/api/portfolio/${id}`, {
+    method: "DELETE",
+    headers,
+  });
+  return { data: result.data?.success ? true : null, error: result.error } as ApiResult<boolean>;
+}
+
+// ==================== EVENT API FUNCTIONS ====================
+
+export async function createEvent(eventData: {
+  name: string;
+  eventType: string;
+  eventDate: string;
+  location: string;
+  guestCount: number;
+  description?: string;
+}, token?: string) {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const t = token ?? getAuthToken();
+  if (t) headers.Authorization = `Bearer ${t}`;
+
+  const result = await apiRequest<{ success: boolean; message?: string; data: Event }>("/api/events", {
+    method: "POST",
+    headers,
+    body: JSON.stringify(eventData),
+  });
+  return { data: result.data?.data ?? null, error: result.error } as ApiResult<Event>;
+}
+
+export async function getEvents(token?: string) {
+  const headers: Record<string, string> = {};
+  const t = token ?? getAuthToken();
+  if (t) headers.Authorization = `Bearer ${t}`;
+
+  const result = await apiRequest<{ success: boolean; data: Event[] }>("/api/events", {
+    method: "GET",
+    headers,
+  });
+  return { data: result.data?.data ?? null, error: result.error } as ApiResult<Event[]>;
+}
+
+export async function getEvent(eventId: string, token?: string) {
+  const headers: Record<string, string> = {};
+  const t = token ?? getAuthToken();
+  if (t) headers.Authorization = `Bearer ${t}`;
+
+  const result = await apiRequest<{ success: boolean; data: Event }>(`/api/events/${encodeURIComponent(eventId)}`, {
+    method: "GET",
+    headers,
+  });
+  return { data: result.data?.data ?? null, error: result.error } as ApiResult<Event>;
+}
+
+export async function updateEvent(eventId: string, updateData: Partial<Event>, token?: string) {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const t = token ?? getAuthToken();
+  if (t) headers.Authorization = `Bearer ${t}`;
+
+  const result = await apiRequest<{ success: boolean; message?: string; data: Event }>(`/api/events/${encodeURIComponent(eventId)}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify(updateData),
+  });
+  return { data: result.data?.data ?? null, error: result.error } as ApiResult<Event>;
+}
+
+export async function addVendorToEvent(eventId: string, vendorId: string, enquiryId?: string, token?: string) {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const t = token ?? getAuthToken();
+  if (t) headers.Authorization = `Bearer ${t}`;
+
+  const result = await apiRequest<{ success: boolean; message?: string; data: EventVendor }>(`/api/events/${encodeURIComponent(eventId)}/vendors`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ vendorId, enquiryId }),
+  });
+  return { data: result.data?.data ?? null, error: result.error } as ApiResult<EventVendor>;
+}
+
+export async function removeVendorFromEvent(eventId: string, vendorId: string, token?: string) {
+  const headers: Record<string, string> = {};
+  const t = token ?? getAuthToken();
+  if (t) headers.Authorization = `Bearer ${t}`;
+
+  return apiRequest<{ success: boolean; message?: string }>(`/api/events/${encodeURIComponent(eventId)}/vendors/${encodeURIComponent(vendorId)}`, {
+    method: "DELETE",
+    headers,
+  });
+}
+
+export async function getEventReadiness(eventId: string, token?: string) {
+  const headers: Record<string, string> = {};
+  const t = token ?? getAuthToken();
+  if (t) headers.Authorization = `Bearer ${t}`;
+
+  const result = await apiRequest<{ success: boolean; data: EventReadiness }>(`/api/events/${encodeURIComponent(eventId)}/readiness`, {
+    method: "GET",
+    headers,
+  });
+  return { data: result.data?.data ?? null, error: result.error } as ApiResult<EventReadiness>;
+}
+
+export async function launchEvent(eventId: string, token?: string) {
+  const headers: Record<string, string> = {};
+  const t = token ?? getAuthToken();
+  if (t) headers.Authorization = `Bearer ${t}`;
+
+  const result = await apiRequest<{ success: boolean; message?: string; data: Event }>(`/api/events/${encodeURIComponent(eventId)}/launch`, {
+    method: "POST",
+    headers,
+  });
+  return { data: result.data?.data ?? null, error: result.error } as ApiResult<Event>;
+}
+
+export async function getMaxifyIntegrationInfo(eventId: string, token?: string) {
+  const headers: Record<string, string> = {};
+  const t = token ?? getAuthToken();
+  if (t) headers.Authorization = `Bearer ${t}`;
+
+  const result = await apiRequest<{ success: boolean; data: MaxifyIntegrationInfo }>(`/api/events/${encodeURIComponent(eventId)}/maxify/info`, {
+    method: "GET",
+    headers,
+  });
+  return { data: result.data?.data ?? null, error: result.error } as ApiResult<MaxifyIntegrationInfo>;
+}
+
