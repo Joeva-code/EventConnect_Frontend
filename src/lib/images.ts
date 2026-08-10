@@ -91,6 +91,8 @@ export const EVENT_TYPE_IMAGE_POOL: Record<string, string[]> = {
   ],
 };
 
+export const EVENT_TYPES = Object.keys(EVENT_TYPE_IMAGE_POOL);
+
 export function getEventTypeImage(type: string, index: number): string {
   const normalized = Object.keys(EVENT_TYPE_IMAGE_POOL).find(
     (key) => key.toLowerCase() === type.toLowerCase()

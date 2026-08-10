@@ -73,7 +73,7 @@ export function EnquiryChat({ enquiry, currentUser, onClose }: EnquiryChatProps)
             <h2 id="chat-title" className="mt-1 text-xl font-semibold text-slate-950">Chat with {name}</h2>
             <p className="mt-1 text-sm text-slate-500">{enquiry.eventType} · {enquiry.eventDate}</p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-full p-2 text-slate-500 hover:bg-slate-100" aria-label="Close chat">✕</button>
+          <button type="button" onClick={onClose} className="rounded-full p-2.5 text-slate-500 hover:bg-slate-100 min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Close chat">✕</button>
         </div>
 
         <div className="min-h-56 flex-1 space-y-3 overflow-y-auto bg-slate-50 p-5">

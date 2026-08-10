@@ -35,7 +35,13 @@ export function SignInForm() {
 
     if (result.data?.token) {
       saveAuthToken(result.data.token, remember);
-      const user = result.data.data ?? getAuthUser();
+      let user = result.data.data ?? getAuthUser();
+      if (!user) {
+        const me = await getCurrentUser();
+        if (!me.error && me.data) {
+          user = me.data;
+        }
+      }
       if (user) {
         saveAuthUser(user, remember);
       }

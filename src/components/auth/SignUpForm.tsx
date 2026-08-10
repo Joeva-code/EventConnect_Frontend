@@ -68,7 +68,13 @@ export function SignUpForm() {
 
     if (loginResult.data?.token) {
       saveAuthToken(loginResult.data.token, true);
-      const user = loginResult.data.data ?? getAuthUser();
+      let user = loginResult.data.data ?? getAuthUser();
+      if (!user) {
+        const me = await getCurrentUser();
+        if (!me.error && me.data) {
+          user = me.data;
+        }
+      }
       if (user) {
         saveAuthUser(user, true);
       }
@@ -88,102 +94,104 @@ export function SignUpForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-8 space-y-5">
-      <div className="grid grid-cols-2 gap-4">
+    <div className="mt-8 space-y-5">
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <TextField
+            id="firstName"
+            name="firstName"
+            label="First Name"
+            placeholder="John"
+            autoComplete="given-name"
+            icon={<UserIcon className="h-4.5 w-4.5" />}
+            value={firstName}
+            onChange={(event) => setFirstName(event.target.value)}
+            required
+          />
+          <TextField
+            id="lastName"
+            name="lastName"
+            label="Last Name"
+            placeholder="Doe"
+            autoComplete="family-name"
+            value={lastName}
+            onChange={(event) => setLastName(event.target.value)}
+            required
+          />
+        </div>
+
         <TextField
-          id="firstName"
-          name="firstName"
-          label="First Name"
-          placeholder="John"
-          autoComplete="given-name"
-          icon={<UserIcon className="h-4.5 w-4.5" />}
-          value={firstName}
-          onChange={(event) => setFirstName(event.target.value)}
+          id="email"
+          name="email"
+          type="email"
+          label="Email"
+          placeholder="Enter your email address"
+          autoComplete="email"
+          icon={<Mail className="h-4.5 w-4.5" />}
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
           required
         />
-        <TextField
-          id="lastName"
-          name="lastName"
-          label="Last Name"
-          placeholder="Doe"
-          autoComplete="family-name"
-          value={lastName}
-          onChange={(event) => setLastName(event.target.value)}
-          required
+
+        <AccountTypeSelect selected={accountType} onChange={setAccountType} />
+
+        <PasswordField
+          label="Password"
+          name="password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
         />
-      </div>
-
-      <TextField
-        id="email"
-        name="email"
-        type="email"
-        label="Email"
-        placeholder="Enter your email address"
-        autoComplete="email"
-        icon={<Mail className="h-4.5 w-4.5" />}
-        value={email}
-        onChange={(event) => setEmail(event.target.value)}
-        required
-      />
-
-      <AccountTypeSelect selected={accountType} onChange={setAccountType} />
-
-      <PasswordField
-        label="Password"
-        name="password"
-        value={password}
-        onChange={(event) => setPassword(event.target.value)}
-      />
-      <PasswordField
-        label="Confirm Password"
-        name="confirmPassword"
-        placeholder="Confirm your password"
-        autoComplete="new-password"
-        value={confirmPassword}
-        onChange={(event) => setConfirmPassword(event.target.value)}
-      />
-
-      {error ? <p className="text-sm font-medium text-red-600">{error}</p> : null}
-      {message ? <p className="text-sm font-medium text-green-600">{message}</p> : null}
-
-      <label className="flex items-start gap-2.5 text-sm text-slate-600">
-        <input
-          type="checkbox"
-          checked={termsAccepted}
-          onChange={(event) => setTermsAccepted(event.target.checked)}
-          className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-          required
+        <PasswordField
+          label="Confirm Password"
+          name="confirmPassword"
+          placeholder="Confirm your password"
+          autoComplete="new-password"
+          value={confirmPassword}
+          onChange={(event) => setConfirmPassword(event.target.value)}
         />
-        <span>
-          I agree to the{" "}
-          <a href="#" className="font-medium text-blue-600 hover:underline">
-            Terms &amp; Conditions
-          </a>{" "}
-          and{" "}
-          <a href="#" className="font-medium text-blue-600 hover:underline">
-            Privacy Policy
-          </a>
-          .
-        </span>
-      </label>
 
-      <button
-        type="submit"
-        disabled={isSubmitting}
-        className="w-full rounded-xl bg-blue-600 py-3.5 text-sm font-semibold text-white shadow-sm shadow-blue-600/20 transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
-      >
-        {isSubmitting ? "Creating account…" : "Sign Up"}
-      </button>
+        {error ? <p className="text-sm font-medium text-red-600">{error}</p> : null}
+        {message ? <p className="text-sm font-medium text-green-600">{message}</p> : null}
 
-      <OrDivider />
-      <GoogleButton />
+        <label className="flex items-start gap-2.5 text-sm text-slate-600">
+          <input
+            type="checkbox"
+            checked={termsAccepted}
+            onChange={(event) => setTermsAccepted(event.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            required
+          />
+          <span>
+            I agree to the{" "}
+            <a href="#" className="font-medium text-blue-600 hover:underline">
+              Terms &amp; Conditions
+            </a>{" "}
+            and{" "}
+            <a href="#" className="font-medium text-blue-600 hover:underline">
+              Privacy Policy
+            </a>
+            .
+          </span>
+        </label>
 
-      <p className="text-center text-sm text-slate-500">
-        Already have an account?{" "}
-        <Link href="/signin" className="font-semibold text-blue-600 hover:underline">
-          Sign In
-        </Link>
-      </p>
-    </form>
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="w-full rounded-xl bg-blue-600 py-3.5 text-sm font-semibold text-white shadow-sm shadow-blue-600/20 transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
+        >
+          {isSubmitting ? "Creating account…" : "Sign Up"}
+        </button>
+
+        <OrDivider />
+        <GoogleButton />
+
+        <p className="text-center text-sm text-slate-500">
+          Already have an account?{" "}
+          <Link href="/signin" className="font-semibold text-blue-600 hover:underline">
+            Sign In
+          </Link>
+        </p>
+      </form>
+    </div>
   );
 }

@@ -85,11 +85,6 @@ export default function DashboardClient() {
   const [chatEnquiry, setChatEnquiry] = useState<Enquiry | null>(null);
   const [readChatIds, setReadChatIds] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    const user = getAuthUser();
-    setUser(user);
-  }, []);
-
   function openChat(enquiry: Enquiry) {
     setReadChatIds((current) => {
       const next = new Set(current);
@@ -142,10 +137,13 @@ export default function DashboardClient() {
   }
 
   useEffect(() => {
-    if (user) {
+    const authUser = getAuthUser();
+    setUser(authUser);
+
+    if (authUser) {
       setIsLoading(false);
       void loadEnquiries();
-      if (user.role.toUpperCase() === "VENDOR") {
+      if (authUser.role.toUpperCase() === "VENDOR") {
         void loadVendors();
         void getMyVendorProfile(getAuthToken() ?? undefined).then((result) => {
           if (!result.error && result.data) {
@@ -173,7 +171,7 @@ export default function DashboardClient() {
       router.replace("/signin");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, []);
 
   async function blockAvailabilityDate() {
     if (!availabilityDate || unavailableDates.includes(availabilityDate)) return;

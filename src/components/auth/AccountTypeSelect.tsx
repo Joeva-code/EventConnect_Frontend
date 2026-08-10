@@ -28,7 +28,7 @@ export function AccountTypeSelect({ selected, onChange }: AccountTypeSelectProps
       <span className="mb-1.5 block text-sm font-medium text-slate-700">
         Account Type
       </span>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {options.map((option) => {
           const isSelected = selected === option.value;
           return (

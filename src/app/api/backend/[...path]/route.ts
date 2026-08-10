@@ -20,13 +20,21 @@ async function proxy(request: NextRequest, context: RouteContext<"/api/backend/[
   REQUEST_HEADERS_TO_REMOVE.forEach((header) => headers.delete(header));
 
   try {
+    const contentType = request.headers.get("content-type");
+    const isMultipart = contentType?.includes("multipart/form-data");
+    const body = request.method === "GET" || request.method === "HEAD" ? undefined : (isMultipart ? await request.blob() : await request.arrayBuffer());
+
     const response = await fetch(target, {
       method: request.method,
       headers,
-      body: request.method === "GET" || request.method === "HEAD" ? undefined : await request.arrayBuffer(),
+      body,
       redirect: "manual",
       cache: "no-store",
     });
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.error(`[proxy] ${request.method} ${target.href} -> ${response.status} ${response.statusText}`, { contentType, isMultipart, responseContentType: response.headers.get('content-type') });
+    }
 
     const responseHeaders = new Headers(response.headers);
     RESPONSE_HEADERS_TO_REMOVE.forEach((header) => responseHeaders.delete(header));

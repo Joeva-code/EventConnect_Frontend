@@ -14,8 +14,8 @@ export default function VendorsPage() {
     <div className="flex flex-1 flex-col">
       <Header />
       <main className="flex-1">
-        <section className="mx-auto max-w-7xl px-6 py-16">
-          <h1 className="text-4xl font-bold tracking-tight text-slate-950">
+        <section className="mx-auto max-w-7xl px-6 py-10 sm:py-16">
+          <h1 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
             Find Vendors
           </h1>
           <p className="mt-3 max-w-2xl text-lg text-slate-500">
