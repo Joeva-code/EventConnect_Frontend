@@ -37,7 +37,7 @@ export function Faq() {
   return (
     <section id="faq" className="mx-auto max-w-4xl px-6 py-20">
       <div className="text-center">
-        <h2 className="text-4xl font-bold tracking-tight text-slate-950">
+          <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
           Frequently Asked Questions
         </h2>
         <p className="mt-3 text-lg text-slate-500">
@@ -51,7 +51,7 @@ export function Faq() {
           return (
             <div
               key={faq.question}
-              className="rounded-2xl border border-slate-200"
+              className="rounded-2xl border border-slate-200 transition-all duration-300 hover:border-blue-200"
             >
               <button
                 type="button"

@@ -82,7 +82,7 @@ export function SignInForm() {
 
       {error ? <p className="text-sm font-medium text-red-600">{error}</p> : null}
 
-      <div className="flex items-center justify-between text-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 text-sm">
         <label className="flex items-center gap-2.5 text-slate-600">
           <input
             type="checkbox"

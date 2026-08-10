@@ -50,7 +50,7 @@ export function WhyUs() {
   return (
     <section id="why-us" className="mx-auto max-w-7xl px-6 py-20">
       <div className="mx-auto max-w-2xl text-center">
-        <h2 className="text-4xl font-bold tracking-tight text-slate-950">
+          <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
           Why Planners Choose EventConnect
         </h2>
         <p className="mt-3 text-lg text-slate-500">
@@ -63,7 +63,7 @@ export function WhyUs() {
         {features.map((feature) => (
           <div
             key={feature.title}
-            className="rounded-2xl border border-slate-200 p-8"
+            className="rounded-2xl border border-slate-200 p-8 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-blue-200"
           >
             <span className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-50 text-blue-600">
               <feature.icon className="h-5 w-5" />

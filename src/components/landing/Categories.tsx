@@ -13,7 +13,7 @@ export function Categories() {
     <section id="categories" className="mx-auto max-w-7xl px-6 py-20">
       <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-          <h2 className="text-4xl font-bold tracking-tight text-slate-950">
+          <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
             Every Vendor Your Event Needs
           </h2>
           <p className="mt-3 max-w-xl text-lg text-slate-500">
@@ -35,13 +35,13 @@ export function Categories() {
           <a
             key={category.name}
             href="#categories"
-            className="group relative aspect-[4/3] overflow-hidden rounded-2xl"
+            className="group relative aspect-[4/3] overflow-hidden rounded-2xl transition-transform duration-300 hover:-translate-y-1 hover:shadow-xl"
           >
             <Image
               src={category.image}
               alt={category.name}
               fill
-              className="object-cover transition-transform duration-300 group-hover:scale-105"
+              className="object-cover transition-transform duration-500 group-hover:scale-105"
               sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
