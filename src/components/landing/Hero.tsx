@@ -1,12 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Star } from "./icons";
+import { Star, ShieldCheck, Sparkle } from "./icons";
 
 export function Hero() {
   return (
-    <section className="mx-auto max-w-7xl px-6 py-20">
+    <section className="mx-auto max-w-7xl px-6 py-10 sm:py-16 lg:py-24">
       <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-2">
-        <div>
+        <div className="max-w-xl">
           <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5 text-sm font-medium text-emerald-700">
             <svg
               viewBox="0 0 24 24"
@@ -21,13 +21,14 @@ export function Hero() {
             Trusted by 12,000+ Organizers
           </span>
 
-          <h1 className="mt-6 text-5xl font-bold leading-[1.1] tracking-tight text-slate-950 sm:text-6xl">
-            Plan Unforgettable Events with Trusted Vendors
+          <h1 className="mt-6 text-4xl font-bold leading-[1.1] tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
+            Plan Unforgettable Events with{" "}
+            <span className="text-blue-600">Trusted Vendors</span>
           </h1>
 
-          <p className="mt-6 max-w-md text-lg leading-8 text-slate-500">
-            Discover vendors, book services, manage payments, and keep every
-            detail of your event organized&mdash;all in one place.
+          <p className="mt-6 text-lg leading-8 text-slate-500">
+            Discover and book trusted vendors, manage your event team, and
+            launch with <span className="font-semibold text-slate-700">Maxify Tickets</span>.
           </p>
 
           <div className="mt-8 flex flex-col gap-4 sm:flex-row">
@@ -77,15 +78,49 @@ export function Hero() {
           </div>
         </div>
 
-        <div className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl">
-          <Image
-            src="https://images.unsplash.com/photo-1551381891-678fe677d619?auto=format&fit=crop&w=1200&q=80"
-            alt="Decorated marquee at a typical Nigerian event venue, with guests in aso-ebi"
-            fill
-            priority
-            className="object-cover"
-            sizes="(min-width: 1024px) 50vw, 100vw"
-          />
+        <div className="relative">
+          <div className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl shadow-2xl">
+            <Image
+              src="https://images.unsplash.com/photo-1551381891-678fe677d619?auto=format&fit=crop&w=1200&q=80"
+              alt="Decorated marquee at a typical Nigerian event venue, with guests in aso-ebi"
+              fill
+              priority
+              className="object-cover"
+              sizes="(min-width: 1024px) 50vw, 100vw"
+            />
+          </div>
+
+          <div className="absolute -bottom-4 -left-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-lg sm:-bottom-6 sm:-left-6 sm:p-5">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-950">Event Health</p>
+                <p className="text-xs text-slate-500">98% on-time bookings</p>
+              </div>
+            </div>
+            <div className="mt-3 h-2 w-full rounded-full bg-slate-100">
+              <div className="h-2 w-[98%] rounded-full bg-emerald-500" />
+            </div>
+          </div>
+
+          <div className="absolute -top-4 -right-4 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-lg sm:-top-6 sm:-right-6 sm:px-6 sm:py-5">
+            <p className="text-xs font-medium text-slate-500">Powered by</p>
+            <div className="flex items-center gap-3">
+              <Image
+                src="/image.png"
+                alt="Maxify Tickets"
+                width={120}
+                height={36}
+                className="h-9 w-auto object-contain"
+              />
+            </div>
+            <div className="mt-2 flex items-center gap-1.5">
+              <Sparkle className="h-4 w-4 text-amber-500" />
+              <span className="text-xs font-medium text-slate-600">Seamless check-in</span>
+            </div>
+          </div>
         </div>
       </div>
     </section>

@@ -77,7 +77,7 @@ type VendorSection =
   | "Messages"
   | "Availability"
   | "Profile"
-  | "Payouts";
+  | "Portfolio";
 
 const vendorNavItems: VendorSection[] = [
   "Dashboard",
@@ -86,7 +86,7 @@ const vendorNavItems: VendorSection[] = [
   "Messages",
   "Availability",
   "Profile",
-  "Payouts",
+  "Portfolio",
 ];
 
 function enquiryList(value: unknown): Enquiry[] {
@@ -220,21 +220,14 @@ const vendorMessages = [
   },
 ];
 
-const vendorPayouts = [
+const vendorPortfolio = [
   {
-    period: "July 2026",
-    amount: "₦860,000",
-    status: "Paid",
+    title: "Elegant Wedding Decor",
+    description: "Marble centerpieces and custom lighting for a 200 person wedding.",
   },
   {
-    period: "June 2026",
-    amount: "₦1,020,000",
-    status: "Paid",
-  },
-  {
-    period: "May 2026",
-    amount: "₦730,000",
-    status: "Processing",
+    title: "Corporate Gala Set",
+    description: "Stage design and AV support for a multinational launch event.",
   },
 ];
 
@@ -878,22 +871,30 @@ export default function DashboardClient() {
                     </div>
                   </div>
                 </div>
-              ) : (
+              ) : activeVendorSection === "Portfolio" ? (
                 <div className="rounded-[32px] bg-white p-6 shadow-sm">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-semibold text-slate-500">Payouts</p>
-                      <h2 className="mt-1 text-2xl font-semibold text-slate-950">Payment history</h2>
+                      <p className="text-sm font-semibold text-slate-500">Portfolio</p>
+                      <h2 className="mt-1 text-2xl font-semibold text-slate-950">Showcase your work</h2>
                     </div>
                     <button type="button" className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
-                      Download report
+                      Add new item
                     </button>
                   </div>
 
-                  <p className="mt-6 rounded-[28px] border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">Payout data will appear here when the backend payout endpoint is available.</p>
+                  <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                    {vendorPortfolio.map((item, index) => (
+                      <div key={index} className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+                        <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                        <p className="mt-2 text-sm text-slate-600">{item.description}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              )}
-            </section>
+              ) : null
+            }
+             </section>
           </div>
         </main>
 

@@ -14,7 +14,7 @@ export function VendorCta() {
     <section id="vendor-cta" className="mx-auto max-w-7xl px-6 py-20">
       <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-2">
         <div>
-          <h2 className="text-4xl font-bold tracking-tight text-slate-950">
+          <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
             Grow your event business with EventConnect
           </h2>
           <p className="mt-4 text-lg text-slate-500">
@@ -57,6 +57,7 @@ export function VendorCta() {
             className="object-cover"
             sizes="(min-width: 1024px) 50vw, 100vw"
           />
+          <div className="absolute inset-0 rounded-3xl ring-1 ring-inset ring-black/10" />
         </div>
       </div>
     </section>
