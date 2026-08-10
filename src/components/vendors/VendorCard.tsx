@@ -81,7 +81,7 @@ export function VendorCard({
           <button
             type="button"
             onClick={() => onBook?.(vendor)}
-            className={`rounded-full bg-gradient-to-r from-blue-600 via-sky-600 to-blue-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition duration-200 hover:from-blue-700 hover:via-sky-700 hover:to-blue-600 ${
+            className={`rounded-full bg-gradient-to-r from-blue-600 via-sky-600 to-blue-500 px-4 py-2 text-xs font-semibold text-white shadow-sm transition duration-200 hover:from-blue-700 hover:via-sky-700 hover:to-blue-600 min-h-[44px] ${
               compact ? "min-w-[72px]" : "min-w-[88px]"
             }`}
           >

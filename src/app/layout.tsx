@@ -18,6 +18,12 @@ export const metadata: Metadata = {
     "Discover vendors, book services, manage payments, and keep every detail of your event organized — all in one place.",
 };
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+};
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html

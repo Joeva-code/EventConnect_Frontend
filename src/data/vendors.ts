@@ -10,6 +10,17 @@ export const categories = [
 export type Category = (typeof categories)[number];
 
 // This is a UI shape only. Vendor records are always fetched from the backend.
+export type PortfolioItem = {
+  id: string;
+  mediaType: "IMAGE" | "VIDEO";
+  url: string;
+  thumbnailUrl?: string;
+  caption?: string;
+  description?: string;
+  priceRange?: string;
+  sortOrder: number;
+};
+
 export type Vendor = {
   id: string;
   name: string;
@@ -21,4 +32,5 @@ export type Vendor = {
   image: string;
   description: string;
   isPublished: boolean;
+  portfolioItems: PortfolioItem[];
 };

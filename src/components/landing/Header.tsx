@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { ArrowRight } from "./icons";
 
 type HeaderUser = {
   firstName?: string;
@@ -87,9 +88,10 @@ export function Header({ user, onLogout, links = defaultLinks }: HeaderProps) {
               </Link>
               <Link
                 href="/signup"
-                className="rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
               >
-                Sign Up
+                Get Started
+                <ArrowRight className="h-4 w-4" />
               </Link>
             </>
           )}
@@ -100,7 +102,7 @@ export function Header({ user, onLogout, links = defaultLinks }: HeaderProps) {
           onClick={() => setOpen((prev) => !prev)}
           aria-expanded={open}
           aria-label="Toggle navigation menu"
-          className="relative z-10 flex h-10 w-10 shrink-0 cursor-pointer touch-manipulation flex-col items-center justify-center gap-1.5 md:hidden"
+          className="relative z-10 flex h-11 w-11 shrink-0 cursor-pointer touch-manipulation flex-col items-center justify-center gap-1.5 md:hidden"
         >
           <span
             className={`pointer-events-none h-0.5 w-6 rounded-full bg-slate-900 transition-transform duration-300 ease-in-out ${
@@ -173,9 +175,10 @@ export function Header({ user, onLogout, links = defaultLinks }: HeaderProps) {
                   <Link
                     href="/signup"
                     onClick={() => setOpen(false)}
-                    className="rounded-full bg-blue-600 px-5 py-2.5 text-center text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                    className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-center text-sm font-semibold text-white transition-colors hover:bg-blue-700"
                   >
-                    Sign Up
+                    Get Started
+                    <ArrowRight className="h-4 w-4" />
                   </Link>
                 </>
               )}

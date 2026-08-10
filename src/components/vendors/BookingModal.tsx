@@ -1,8 +1,9 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import type { Vendor } from "@/data/vendors";
-import { createBooking, getAuthToken } from "@/lib/api";
+import { createBooking, getAuthToken, getVendorPortfolio } from "@/lib/api";
+import Image from "next/image";
 
 type BookingModalProps = {
   vendor: Vendor;
@@ -20,10 +21,28 @@ export function BookingModal({ vendor, onClose, onBooked }: BookingModalProps) {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSent, setIsSent] = useState(false);
+  const [showPortfolio, setShowPortfolio] = useState(false);
+  const [portfolio, setPortfolio] = useState<Array<{ id: string; mediaType: string; url: string; thumbnailUrl?: string; caption?: string; priceRange?: string; sortOrder: number }>>([]);
+  const [isLoadingPortfolio, setIsLoadingPortfolio] = useState(false);
 
   function clearError() {
     if (error) setError(null);
   }
+
+  useEffect(() => {
+    if (showPortfolio) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setIsLoadingPortfolio(true);
+      getVendorPortfolio(vendor.id, getAuthToken() ?? undefined).then((result) => {
+        if (result.error) {
+          setError(result.error);
+        } else {
+          setPortfolio(result.data?.portfolioItems ?? []);
+        }
+        setIsLoadingPortfolio(false);
+      });
+    }
+  }, [showPortfolio, vendor.id]);
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const guests = Number(guestCount);
@@ -65,8 +84,40 @@ export function BookingModal({ vendor, onClose, onBooked }: BookingModalProps) {
             <h2 id="booking-title" className="mt-1 text-2xl font-semibold text-slate-950">Book {vendor.name}</h2>
             <p className="mt-2 text-sm text-slate-500">Share your event details. The vendor will review and respond to your request.</p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-full p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900" aria-label="Close booking form">✕</button>
+          <button type="button" onClick={onClose} className="rounded-full p-2.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Close booking form">✕</button>
         </div>
+
+        <div className="mt-4">
+          <button type="button" onClick={() => setShowPortfolio((current) => !current)} className="text-sm font-semibold text-blue-600 hover:underline">
+            {showPortfolio ? "Hide portfolio" : "View portfolio before booking"}
+          </button>
+        </div>
+
+        {showPortfolio ? (
+          <div className="mt-4">
+            {isLoadingPortfolio ? (
+              <p className="text-sm text-slate-500">Loading portfolio...</p>
+            ) : portfolio.length === 0 ? (
+              <p className="text-sm text-slate-500">No portfolio items yet.</p>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {portfolio.map((item) => (
+                  <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    {item.url ? (
+                      item.mediaType === "VIDEO" ? (
+                        <video src={item.url} controls className="mb-2 h-40 w-full rounded-xl object-cover" />
+                      ) : (
+                        <Image src={item.url} alt={item.caption ?? item.url} width={400} height={300} className="mb-2 h-40 w-full rounded-xl object-cover" />
+                      )
+                    ) : null}
+                    {item.caption ? <p className="text-sm font-semibold text-slate-900">{item.caption}</p> : null}
+                    {item.priceRange ? <p className="text-sm font-semibold text-blue-700">{item.priceRange}</p> : null}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : null}
 
         {isSent ? (
           <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-emerald-900">

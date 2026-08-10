@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Star, ShieldCheck, Wallet, Chat } from "../landing/icons";
 
@@ -22,7 +23,7 @@ export function AuthShowcase() {
         </span>
       </Link>
 
-      <div className="relative mt-16 max-w-md">
+      <div className="relative mt-12 max-w-md">
         <h2 className="text-4xl font-bold leading-tight tracking-tight">
           Plan unforgettable events with trusted vendors
         </h2>
@@ -30,6 +31,21 @@ export function AuthShowcase() {
           Join 12,000+ planners and 5,400+ vendors already booking with
           confidence on EventConnect.
         </p>
+
+        <div className="mt-8 relative aspect-[4/3] w-full overflow-hidden rounded-2xl shadow-2xl">
+          <Image
+            src="/image.png"
+            alt="EventConnect Maxify Integration"
+            fill
+            className="object-cover"
+            sizes="50vw"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+          <div className="absolute bottom-4 left-4">
+            <p className="text-xs font-medium text-white/80">Powered by</p>
+            <p className="text-sm font-bold text-white">Maxify Tickets</p>
+          </div>
+        </div>
 
         <ul className="mt-8 space-y-4">
           {points.map((point) => (
