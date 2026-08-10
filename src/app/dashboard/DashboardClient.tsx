@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { clearAuth, getAuthToken, getAuthUser, getEnquiries, getMyAvailability, getMyVendorProfile, getVendors, saveAuthUser, type Enquiry, type User, updateEnquiryStatus, updateMyAvailability, updateMyVendorProfile, updateProfile, uploadProfileImage } from "@/lib/api";
+import { clearAuth, getAuthToken, getAuthUser, getEnquiries, getMyAvailability, getMyVendorProfile, getVendors, saveAuthUser, type Enquiry, type User, updateEnquiryStatus, updateMyAvailability, updateMyVendorProfile, updateProfile, uploadProfileImage, createPortfolioItem, deletePortfolioItem } from "@/lib/api";
 import { Footer } from "@/components/landing/Footer";
 import { Header } from "@/components/landing/Header";
 import { VendorCard } from "@/components/vendors/VendorCard";
@@ -12,7 +12,7 @@ import type { Vendor as DirectoryVendor } from "@/data/vendors";
 import { Search, Bell } from "@/components/landing/icons";
 import Image from "next/image";
 import { EnquiryChat } from "@/components/enquiries/EnquiryChat";
-import { FALLBACK_AVATAR_IMAGE, FALLBACK_VENDOR_IMAGE, getEventTypeImage } from "@/lib/images";
+import { EVENT_TYPES, FALLBACK_AVATAR_IMAGE, getEventTypeImage } from "@/lib/images";
 
 type PlannerSection =
   | "Dashboard"
@@ -29,50 +29,9 @@ const plannerNavItems: Array<{ id: PlannerSection; label: string }> = [
   { id: "Settings", label: "Settings" },
 ];
 
-const EVENT_TYPES = [
-  "Wedding",
-  "Birthday",
-  "Naming Ceremony",
-  "Conference",
-  "Book Launch",
-  "Graduation",
-  "Corporate Event",
-];
-
-const statusCards = [
-  {
-    title: "Waiting for Response",
-    subtitle: "Awaiting vendor reply",
-    value: 3,
-    accent: "bg-amber-100 text-amber-700",
-  },
-  {
-    title: "Accepted",
-    subtitle: "Confirmed bookings",
-    value: 5,
-    accent: "bg-emerald-100 text-emerald-700",
-  },
-  {
-    title: "Completed",
-    subtitle: "Event concluded",
-    value: 12,
-    accent: "bg-sky-100 text-sky-700",
-  },
-];
-
-const eventTypes = [
-  "Wedding",
-  "Birthday",
-  "Naming Ceremony",
-  "Conference",
-  "Book Launch",
-  "Graduation",
-  "Corporate Event",
-];
-
 type VendorSection =
   | "Dashboard"
-  | "Leads"
+  | "Notifications"
   | "Bookings"
   | "Messages"
   | "Availability"
@@ -81,7 +40,7 @@ type VendorSection =
 
 const vendorNavItems: VendorSection[] = [
   "Dashboard",
-  "Leads",
+  "Notifications",
   "Bookings",
   "Messages",
   "Availability",
@@ -107,172 +66,6 @@ function contactName(enquiry: Enquiry, role: "PLANNER" | "VENDOR") {
   return contact?.name || [contact?.firstName, contact?.lastName].filter(Boolean).join(" ") || contact?.email || "EventConnect user";
 }
 
-const vendorStatus = [
-  {
-    title: "New enquiries",
-    subtitle: "Awaiting your response",
-    value: 8,
-    accent: "bg-amber-100 text-amber-700",
-  },
-  {
-    title: "Confirmed bookings",
-    subtitle: "Upcoming events",
-    value: 5,
-    accent: "bg-emerald-100 text-emerald-700",
-  },
-  {
-    title: "Response rate",
-    subtitle: "Last 30 days",
-    value: "96%",
-    accent: "bg-sky-100 text-sky-700",
-  },
-  {
-    title: "Revenue",
-    subtitle: "This month",
-    value: "₦1.2m",
-    accent: "bg-blue-100 text-blue-700",
-  },
-];
-
-const vendorLeads = [
-  {
-    planner: "Tunde & Sade",
-    event: "Wedding",
-    date: "Jul 28",
-    budget: "₦1,500,000",
-    status: "New",
-  },
-  {
-    planner: "Amina",
-    event: "Corporate Launch",
-    date: "Aug 03",
-    budget: "₦850,000",
-    status: "Pending",
-  },
-  {
-    planner: "Emma",
-    event: "Birthday Party",
-    date: "Aug 10",
-    budget: "₦420,000",
-    status: "Confirmed",
-  },
-  {
-    planner: "Chinasa",
-    event: "Engagement",
-    date: "Aug 18",
-    budget: "₦650,000",
-    status: "New",
-  },
-];
-
-const vendorPerformance = [
-  { label: "Mon", value: 68 },
-  { label: "Tue", value: 82 },
-  { label: "Wed", value: 74 },
-  { label: "Thu", value: 90 },
-  { label: "Fri", value: 96 },
-  { label: "Sat", value: 84 },
-  { label: "Sun", value: 72 },
-];
-
-const vendorBookings = [
-  {
-    client: "Eloise Events",
-    service: "Full catering package",
-    date: "Aug 12",
-    total: "₦1,100,000",
-    status: "Confirmed",
-  },
-  {
-    client: "Bright Minds Co.",
-    service: "Stage lighting setup",
-    date: "Aug 21",
-    total: "₦520,000",
-    status: "Pending",
-  },
-  {
-    client: "Nura & Co.",
-    service: "Photography coverage",
-    date: "Sep 05",
-    total: "₦380,000",
-    status: "Confirmed",
-  },
-];
-
-const vendorMessages = [
-  {
-    from: "Amina",
-    subject: "Menu preferences",
-    preview: "Can you share the vegetarian options for 120 guests?",
-    time: "1h ago",
-  },
-  {
-    from: "Daniel",
-    subject: "Venue dimensions",
-    preview: "Please confirm the stage size and power requirements.",
-    time: "4h ago",
-  },
-  {
-    from: "Chinasa",
-    subject: "Photo package update",
-    preview: "I want to add drone coverage to my package.",
-    time: "Yesterday",
-  },
-];
-
-const vendorPortfolio = [
-  {
-    title: "Elegant Wedding Decor",
-    description: "Marble centerpieces and custom lighting for a 200 person wedding.",
-  },
-  {
-    title: "Corporate Gala Set",
-    description: "Stage design and AV support for a multinational launch event.",
-  },
-];
-
-const plannerEnquiries = [
-  {
-    vendor: "Luminous Stage Co.",
-    event: "Wedding Reception",
-    date: "Jul 28",
-    budget: "₦1,500,000",
-    status: "Awaiting reply",
-  },
-  {
-    vendor: "Aduke Décor & Events",
-    event: "Corporate Gala",
-    date: "Aug 03",
-    budget: "₦950,000",
-    status: "Quote requested",
-  },
-  {
-    vendor: "Frame & Focus Photography",
-    event: "Product Launch",
-    date: "Aug 10",
-    budget: "₦420,000",
-    status: "Confirmed",
-  },
-];
-
-const plannerNotifications = [
-  {
-    headline: "New message from Amaka's Kitchen",
-    detail: "She sent a follow-up on your catering inquiry.",
-    time: "2h ago",
-  },
-  {
-    headline: "Booking confirmed",
-    detail: "Rhythm Nation Band accepted your request for Aug 15.",
-    time: "1d ago",
-  },
-  {
-    headline: "Portfolio update",
-    detail: "A vendor added 10 new photos to their listing.",
-    time: "3d ago",
-  },
-];
-
 export default function DashboardClient() {
   const router = useRouter();
   const [user, setUser] = useState<ReturnType<typeof getAuthUser>>(null);
@@ -292,6 +85,11 @@ export default function DashboardClient() {
   const [chatEnquiry, setChatEnquiry] = useState<Enquiry | null>(null);
   const [readChatIds, setReadChatIds] = useState<Set<string>>(new Set());
 
+  useEffect(() => {
+    const user = getAuthUser();
+    setUser(user);
+  }, []);
+
   function openChat(enquiry: Enquiry) {
     setReadChatIds((current) => {
       const next = new Set(current);
@@ -307,17 +105,14 @@ export default function DashboardClient() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [vendorProfileSaved, setVendorProfileSaved] = useState(false);
-
-  useEffect(() => {
-    const authUser = getAuthUser();
-    if (!authUser) {
-      router.replace("/signin");
-      return;
-    }
-
-    setUser(authUser);
-    setIsLoading(false);
-  }, [router]);
+  const [vendorPortfolio, setVendorPortfolio] = useState<Array<{ id: string; mediaType: string; url: string; thumbnailUrl?: string; caption?: string; description?: string; priceRange?: string; sortOrder: number }>>([]);
+  const [showPortfolioForm, setShowPortfolioForm] = useState(false);
+  const [portfolioForm, setPortfolioForm] = useState({ title: "", description: "", priceRange: "", mediaType: "IMAGE" as string });
+  const [portfolioImageFile, setPortfolioImageFile] = useState<File | null>(null);
+  const [portfolioImagePreview, setPortfolioImagePreview] = useState<string | null>(null);
+  const [portfolioError, setPortfolioError] = useState<string | null>(null);
+  const [isSavingPortfolio, setIsSavingPortfolio] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -348,9 +143,10 @@ export default function DashboardClient() {
 
   useEffect(() => {
     if (user) {
+      setIsLoading(false);
       void loadEnquiries();
-      void loadVendors();
       if (user.role.toUpperCase() === "VENDOR") {
+        void loadVendors();
         void getMyVendorProfile(getAuthToken() ?? undefined).then((result) => {
           if (!result.error && result.data) {
             setVendorProfileForm({
@@ -365,14 +161,18 @@ export default function DashboardClient() {
         void getMyAvailability(getAuthToken() ?? undefined).then((result) => {
           if (!result.error) setUnavailableDates(result.data?.unavailableDates ?? []);
         });
-
-        const enquiryRefresh = window.setInterval(() => {
-          void loadEnquiries();
-        }, 5_000);
-
-        return () => window.clearInterval(enquiryRefresh);
+        void loadPortfolio();
       }
+
+      const enquiryRefresh = window.setInterval(() => {
+        void loadEnquiries();
+      }, 5_000);
+
+      return () => window.clearInterval(enquiryRefresh);
+    } else {
+      router.replace("/signin");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   async function blockAvailabilityDate() {
@@ -391,6 +191,13 @@ export default function DashboardClient() {
     if (result.error) return setAvailabilityError(result.error);
     setUnavailableDates(dates);
     setAvailabilityError(null);
+  }
+
+  async function loadPortfolio() {
+    const result = await getMyVendorProfile(getAuthToken() ?? undefined);
+    if (!result.error && result.data?.portfolioItems) {
+      setVendorPortfolio(result.data.portfolioItems);
+    }
   }
 
   async function reviewEnquiry(id: string, status: "ACCEPTED" | "DECLINED") {
@@ -459,8 +266,8 @@ export default function DashboardClient() {
       saveAuthUser(finalUser);
       setUser(finalUser);
       setSelectedFile(null);
-    } catch (err: any) {
-      setSaveError(String(err?.message ?? err));
+    } catch (err) {
+      setSaveError(String((err as Error)?.message ?? String(err)));
     } finally {
       setIsSaving(false);
     }
@@ -477,7 +284,13 @@ export default function DashboardClient() {
   }
 
   if (!user) {
-    return null;
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-100 px-6 py-16 text-center">
+        <div className="rounded-3xl border border-slate-200 bg-white px-8 py-10 shadow-sm">
+          <h1 className="text-2xl font-semibold text-slate-950">Loading...</h1>
+        </div>
+      </main>
+    );
   }
 
   const role = user.role?.toUpperCase?.() ?? "";
@@ -533,17 +346,19 @@ export default function DashboardClient() {
               <div className="mb-6 rounded-[28px] bg-slate-50 p-5">
                 <div className="flex items-center gap-3">
                   {user.avatar ? (
-                     <img
+                     <Image
                        src={user.avatar}
                        alt={`${vendorName} profile`}
-                       className="h-12 w-12 rounded-full object-cover"
+                       width={48}
+                       height={48}
+                       className="rounded-full object-cover"
                        onError={(e) => {
                          const target = e.currentTarget;
                          target.onerror = null;
                          target.src = FALLBACK_AVATAR_IMAGE;
                        }}
                      />
-                   ) : (
+                    ) : (
                     <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white shadow-sm">
                       {(() => {
                         const initials = [user.firstName, user.lastName]
@@ -591,15 +406,15 @@ export default function DashboardClient() {
                 <div>
                   <p className="text-sm font-medium text-slate-500">Welcome back, {vendorName} 👋</p>
                   <div className="flex items-center gap-4">
-                    <h1 className="mt-3 text-3xl font-semibold text-slate-950">{activeVendorSection}</h1>
+                     <h1 className="mt-3 text-2xl font-semibold text-slate-950 sm:text-3xl">{activeVendorSection}</h1>
                   </div>
                 </div>
               </header>
 
               {activeVendorSection === "Dashboard" ? (
                 <>
-                  {pendingEnquiries.length > 0 ? <div role="status" className="rounded-[28px] border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900"><span className="font-semibold">New booking request{pendingEnquiries.length === 1 ? "" : "s"} received.</span> Review {pendingEnquiries.length === 1 ? "it" : "them"} in Leads.</div> : null}
-                  <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
+                  {pendingEnquiries.length > 0 ? <div role="status" className="rounded-[28px] border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900"><span className="font-semibold">New booking request{pendingEnquiries.length === 1 ? "" : "s"} received.</span> Review {pendingEnquiries.length === 1 ? "it" : "them"} in Notifications.</div> : null}
+                  <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
                     {vendorStatus.map((card) => (
                       <div key={card.title} className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
                         <div className={`inline-flex rounded-2xl px-3 py-1 text-xs font-semibold ${card.accent}`}>
@@ -615,12 +430,12 @@ export default function DashboardClient() {
                     <div className="rounded-[32px] bg-white p-6 shadow-sm">
                       <div className="flex items-center justify-between gap-4">
                         <div>
-                          <p className="text-sm font-semibold text-slate-500">Latest leads</p>
-                          <h2 className="mt-1 text-2xl font-semibold text-slate-950">Recent planner enquiries</h2>
-                        </div>
-                        <button type="button" onClick={() => setActiveVendorSection("Leads")} className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
-                          View all
-                        </button>
+                           <p className="text-sm font-semibold text-slate-500">Latest notifications</p>
+                           <h2 className="mt-1 text-2xl font-semibold text-slate-950">Recent planner enquiries</h2>
+                         </div>
+                         <button type="button" onClick={() => setActiveVendorSection("Notifications")} className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
+                           View all
+                         </button>
                       </div>
 
                       <div className="mt-6 space-y-4">
@@ -680,11 +495,11 @@ export default function DashboardClient() {
                     </div>
                   </div>
                 </>
-              ) : activeVendorSection === "Leads" ? (
+              ) : activeVendorSection === "Notifications" ? (
                 <div className="rounded-[32px] bg-white p-6 shadow-sm">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-semibold text-slate-500">Open leads</p>
+                      <p className="text-sm font-semibold text-slate-500">Open notifications</p>
                       <h2 className="mt-1 text-2xl font-semibold text-slate-950">Your incoming requests</h2>
                     </div>
                     <button type="button" onClick={loadEnquiries} className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
@@ -847,7 +662,7 @@ export default function DashboardClient() {
                       {previewUrl && (
                         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                           <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Preview</p>
-                          <img src={previewUrl} alt="avatar preview" className="mt-3 h-24 w-24 rounded-full object-cover" />
+                           <Image src={previewUrl} alt="avatar preview" width={96} height={96} className="mt-3 h-24 w-24 rounded-full object-cover" />
                         </div>
                       )}
 
@@ -878,19 +693,80 @@ export default function DashboardClient() {
                       <p className="text-sm font-semibold text-slate-500">Portfolio</p>
                       <h2 className="mt-1 text-2xl font-semibold text-slate-950">Showcase your work</h2>
                     </div>
-                    <button type="button" className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
-                      Add new item
+                    <button type="button" onClick={() => setShowPortfolioForm((current) => !current)} className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
+                      {showPortfolioForm ? "Close" : "Add new item"}
                     </button>
                   </div>
 
-                  <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                    {vendorPortfolio.map((item, index) => (
-                      <div key={index} className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-                        <p className="text-sm font-semibold text-slate-900">{item.title}</p>
-                        <p className="mt-2 text-sm text-slate-600">{item.description}</p>
+                  {showPortfolioForm ? (
+                    <div className="mt-6 rounded-3xl border border-slate-200 bg-slate-50 p-5">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <input value={portfolioForm.title} onChange={(e) => setPortfolioForm((form) => ({ ...form, title: e.target.value }))} placeholder="Project title" className="rounded-2xl border border-slate-200 bg-white px-4 py-3" />
+                        <select value={portfolioForm.mediaType} onChange={(e) => setPortfolioForm((form) => ({ ...form, mediaType: e.target.value }))} className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                          <option value="IMAGE">Image</option>
+                          <option value="VIDEO">Video</option>
+                        </select>
+                        <input value={portfolioForm.priceRange} onChange={(e) => setPortfolioForm((form) => ({ ...form, priceRange: e.target.value }))} placeholder="Price range (optional)" className="rounded-2xl border border-slate-200 bg-white px-4 py-3" />
                       </div>
-                    ))}
-                  </div>
+                      <textarea value={portfolioForm.description} onChange={(e) => setPortfolioForm((form) => ({ ...form, description: e.target.value }))} placeholder="Describe this project or package..." rows={3} className="mt-3 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm" />
+                      <label className="mt-3 block rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 cursor-pointer">
+                        Upload work {portfolioForm.mediaType === "VIDEO" ? "video" : "photo"}
+                        <input type="file" accept={portfolioForm.mediaType === "VIDEO" ? "video/*" : "image/*"} className="mt-2 w-full text-sm" onChange={(e) => {
+                          const file = e.target.files?.[0] ?? null;
+                          setPortfolioImageFile(file);
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = () => setPortfolioImagePreview(reader.result as string);
+                            reader.readAsDataURL(file);
+                          } else {
+                            setPortfolioImagePreview(null);
+                          }
+                        }} />
+                      </label>
+                      {portfolioImagePreview ? (
+                        <div className="mt-3">
+                          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Preview</p>
+                           <Image src={portfolioImagePreview} alt="portfolio preview" width={160} height={160} className="mt-2 h-40 w-40 rounded-2xl object-cover" />
+                        </div>
+                      ) : null}
+                      {portfolioError ? <p className="mt-2 text-sm text-rose-600">{portfolioError}</p> : null}
+                      <button type="button" onClick={handleAddPortfolioItem} disabled={isSavingPortfolio} className="mt-4 rounded-3xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300">
+                        {isSavingPortfolio ? "Saving..." : "Add"}
+                      </button>
+                    </div>
+                  ) : null}
+
+                    <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                      {vendorPortfolio.map((item) => (
+                        <div key={item.id} className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+                          <div className="flex items-center justify-end gap-2">
+                            <button type="button" onClick={() => void handleDeletePortfolioItem(item.id)} className="rounded-full bg-white/90 p-2.5 text-slate-500 shadow-sm transition hover:bg-rose-50 hover:text-rose-600 min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Delete portfolio item">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                                <path d="M3 6h18" />
+                                <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6" />
+                                <path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                              </svg>
+                            </button>
+                            <button type="button" onClick={() => alert("Edit feature coming soon")} className="rounded-full bg-white/90 p-2.5 text-slate-500 shadow-sm transition hover:bg-blue-50 hover:text-blue-600 min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Edit portfolio item">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                                <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 4 22l1.5-5.5L17 3z" />
+                              </svg>
+                            </button>
+                          </div>
+                          {item.url ? (
+                            item.mediaType === "VIDEO" ? (
+                              <video src={item.url} controls className="mt-3 h-48 w-full rounded-2xl object-cover" />
+                            ) : (
+                               <Image src={item.url} alt={item.caption ?? "Portfolio item"} width={600} height={400} className="mt-3 h-48 w-full rounded-2xl object-cover" style={{ width: 'auto', height: 'auto' }} />
+                            )
+                          ) : null}
+                          {item.caption ? <p className="mt-3 text-sm font-semibold text-slate-900">{item.caption}</p> : null}
+                          {item.description ? <p className="mt-2 text-sm text-slate-600">{item.description}</p> : null}
+                          {item.priceRange ? <p className="mt-2 text-sm font-semibold text-blue-700">{item.priceRange}</p> : null}
+                        </div>
+                      ))}
+                    </div>
+                  {vendorPortfolio.length === 0 ? <p className="mt-4 text-sm text-slate-500">No portfolio items yet. Add your first project above.</p> : null}
                 </div>
               ) : null
             }
@@ -915,6 +791,47 @@ export default function DashboardClient() {
     } else {
       setVendorProfileSaved(true);
       setTimeout(() => setVendorProfileSaved(false), 3000);
+    }
+  }
+
+  async function handleAddPortfolioItem() {
+    setPortfolioError(null);
+    if (!portfolioForm.title.trim() || !portfolioImageFile) {
+      setPortfolioError("Please provide a title and upload a photo or video.");
+      return;
+    }
+
+    setIsSavingPortfolio(true);
+    const formData = new FormData();
+    formData.append("media", portfolioImageFile);
+    formData.append("caption", portfolioForm.title);
+    formData.append("priceRange", portfolioForm.priceRange);
+    formData.append("mediaType", portfolioForm.mediaType);
+    if (portfolioForm.description.trim()) {
+      formData.append("description", portfolioForm.description);
+    }
+
+    const result = await createPortfolioItem(formData, getAuthToken() ?? undefined);
+    setIsSavingPortfolio(false);
+    if (result.error) {
+      setPortfolioError(result.error);
+    } else {
+      await loadPortfolio();
+      setPortfolioForm({ title: "", description: "", priceRange: "", mediaType: "IMAGE" });
+      setPortfolioImageFile(null);
+      setPortfolioImagePreview(null);
+      setShowPortfolioForm(false);
+    }
+  }
+
+  async function handleDeletePortfolioItem(id: string) {
+    const confirmed = window.confirm("Delete this portfolio item? This action cannot be undone.");
+    if (!confirmed) return;
+    const result = await deletePortfolioItem(id, getAuthToken() ?? undefined);
+    if (result.error) {
+      setPortfolioError(result.error);
+    } else {
+      await loadPortfolio();
     }
   }
 
@@ -957,14 +874,43 @@ export default function DashboardClient() {
       />
       <main className="flex-1 px-4 py-8 sm:px-6 lg:px-10">
         <div className="mx-auto grid max-w-[1700px] gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
-        <aside className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
+          {/* Mobile sidebar toggle */}
+          <div className="xl:hidden">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen((open) => !open)}
+              className="mb-4 flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                <path d="M4 7h16M4 12h16M4 17h16" />
+              </svg>
+              {sidebarOpen ? "Close menu" : "Open menu"}
+            </button>
+          </div>
+
+          {/* Sidebar overlay for mobile */}
+          {sidebarOpen ? (
+            <div className="fixed inset-0 z-40 bg-slate-900/40 xl:hidden" onClick={() => setSidebarOpen(false)} />
+          ) : null}
+
+          <aside className={`rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm xl:relative xl:block xl:translate-x-0 fixed inset-y-0 left-0 z-50 w-[280px] overflow-y-auto transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+            <div className="mb-6 flex items-center justify-between xl:hidden">
+              <p className="text-sm font-semibold text-slate-950">Menu</p>
+              <button type="button" onClick={() => setSidebarOpen(false)} className="rounded-full p-2.5 text-slate-500 hover:bg-slate-100 min-h-[44px] min-w-[44px] flex items-center justify-center">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           <div className="mb-6 rounded-[28px] bg-slate-50 p-5">
             <div className="flex items-center gap-3">
               {user.avatar ? (
-                <img
+                <Image
                   src={user.avatar}
-                  alt={`${user.firstName ?? "User"} profile"`}
-                  className="h-12 w-12 rounded-full object-cover"
+                  alt={`${user.firstName ?? "User"} profile`}
+                  width={48}
+                  height={48}
+                  className="rounded-full object-cover"
                   onError={(e) => {
                     const target = e.currentTarget;
                     target.onerror = null;
@@ -1020,7 +966,7 @@ export default function DashboardClient() {
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-sm font-medium text-slate-500">Good Morning, {greetingName} 👋</p>
-                <h1 className="mt-3 text-3xl font-semibold text-slate-950">
+                <h1 className="mt-3 text-2xl font-semibold text-slate-950 sm:text-3xl">
                   {activeSection}
                 </h1>
                 <p className="mt-2 text-sm text-slate-500">
@@ -1243,9 +1189,9 @@ export default function DashboardClient() {
                     className="w-full rounded-2xl border border-slate-200 px-4 py-2"
                   />
                   <input type="file" accept="image/*" onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)} />
-                  {previewUrl && (
-                    <img src={previewUrl} alt="preview" className="h-20 w-20 rounded-full object-cover mt-2" />
-                  )}
+                   {previewUrl && (
+                     <Image src={previewUrl} alt="preview" width={80} height={80} className="h-20 w-20 rounded-full object-cover mt-2" />
+                   )}
                   {saveError && <p className="text-sm text-rose-600">{saveError}</p>}
                   <div className="flex gap-2 mt-2">
                     <button onClick={handleSaveProfile} disabled={isSaving} className="rounded-3xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white">
@@ -1286,6 +1232,7 @@ export default function DashboardClient() {
         />
       ) : null}
       {chatEnquiry ? <EnquiryChat enquiry={chatEnquiry} currentUser={user as User} onClose={() => setChatEnquiry(null)} /> : null}
+
       <Footer />
     </div>
   );
