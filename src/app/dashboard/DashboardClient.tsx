@@ -757,7 +757,7 @@ export default function DashboardClient() {
                             item.mediaType === "VIDEO" ? (
                               <video src={item.url} controls className="mt-3 h-48 w-full rounded-2xl object-cover" />
                             ) : (
-                              <Image src={item.url} alt={item.caption ?? "Portfolio item"} width={600} height={400} className="mt-3 h-48 w-full rounded-2xl object-cover" />
+                               <Image src={item.url} alt={item.caption ?? "Portfolio item"} width={600} height={400} className="mt-3 h-48 w-full rounded-2xl object-cover" style={{ width: 'auto', height: 'auto' }} />
                             )
                           ) : null}
                           {item.caption ? <p className="mt-3 text-sm font-semibold text-slate-900">{item.caption}</p> : null}
