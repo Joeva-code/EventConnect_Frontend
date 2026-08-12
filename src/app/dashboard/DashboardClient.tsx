@@ -23,12 +23,20 @@ type PlannerSection =
   | "Profile"
   | "Settings";
 
-type PlannerNavItem = { id: PlannerSection; label: string; icon?: React.ReactNode };
+type PlannerNavItem = { id: PlannerSection; label: string; icon?: React.ReactNode; image?: React.ReactNode };
 
 const plannerNavItems: PlannerNavItem[] = [
   { id: "Dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" /> },
   { id: "My Events", label: "My Events", icon: <Calendar className="h-4 w-4" /> },
-  { id: "MaxifyTickets", label: "MaxifyTickets", icon: <Ticket className="h-4 w-4" /> },
+  { id: "MaxifyTickets", label: "MaxifyTickets", image: (
+    <Image
+      src="/image.png"
+      alt="Maxify Tickets"
+      width={120}
+      height={36}
+      className="h-9 w-auto object-contain"
+    />
+  ) },
   { id: "Discover Vendors", label: "Find Vendors", icon: <Search className="h-4 w-4" /> },
   { id: "Messages", label: "Messages", icon: <Message className="h-4 w-4" /> },
   { id: "Profile", label: "Profile", icon: <UserIcon className="h-4 w-4" /> },
@@ -1050,7 +1058,11 @@ export default function DashboardClient() {
                     }`}
                   >
                     <span className="flex h-5 w-5 items-center justify-center">{item.icon}</span>
-                    <span className="flex-1">{item.label}</span>
+                    {item.image ? (
+                      <span className="flex-1">{item.image}</span>
+                    ) : (
+                      <span className="flex-1">{item.label}</span>
+                    )}
                     {showStatusDot && (
                       <span
                         className={`h-2 w-2 flex-shrink-0 rounded-full ${
