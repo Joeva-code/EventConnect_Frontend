@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowRight } from "./icons";
+import { Logo } from "@/components/branding/Logo";
 
 type HeaderUser = {
   firstName?: string;
@@ -38,14 +39,7 @@ export function Header({ user, onLogout, links = defaultLinks }: HeaderProps) {
       <div className="pointer-events-none absolute inset-0 border-b border-slate-200 bg-white/90 backdrop-blur" />
       <div className="relative h-1 bg-amber-400" />
       <div className="relative mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
-        <Link href="/" className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-sm font-bold text-white">
-            e
-          </span>
-          <span className="text-lg font-semibold text-slate-900">
-            Event<span className="text-blue-600">Connect</span>
-          </span>
-        </Link>
+        <Logo iconOnly size="lg" className="text-xl" />
 
         <nav className="hidden items-center gap-8 md:flex">
           {links.map((link: NavLink) =>

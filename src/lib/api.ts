@@ -279,6 +279,20 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<ApiR
         console.error(`API error ${response.status}: ${message}`, { status: response.status, body: json });
       }
 
+      if (response.status === 401) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`[auth] apiRequest 401 on ${path}`, { method: init.method, path });
+        }
+        clearAuth();
+        if (typeof window !== "undefined") {
+          window.location.href = "/signin";
+        }
+      } else if (response.status === 403) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`[auth] apiRequest 403 on ${path}`, { method: init.method, path });
+        }
+      }
+
       return { data: null, error: message };
     }
 
@@ -296,7 +310,11 @@ export function getAuthToken() {
   if (typeof window === "undefined") {
     return null;
   }
-  return window.localStorage.getItem(TOKEN_STORAGE_KEY) ?? window.sessionStorage.getItem(TOKEN_STORAGE_KEY);
+  const token = window.localStorage.getItem(TOKEN_STORAGE_KEY) ?? window.sessionStorage.getItem(TOKEN_STORAGE_KEY);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[auth] getAuthToken', { hasToken: !!token, storage: token ? (window.localStorage.getItem(TOKEN_STORAGE_KEY) ? 'localStorage' : 'sessionStorage') : 'none' });
+  }
+  return token;
 }
 
 export function saveAuthToken(token: string, remember = true) {
@@ -308,6 +326,10 @@ export function saveAuthToken(token: string, remember = true) {
     window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
   } else {
     window.sessionStorage.setItem(TOKEN_STORAGE_KEY, token);
+  }
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[auth] token saved', { storage: remember ? 'localStorage' : 'sessionStorage', tokenLength: token.length });
   }
 }
 
@@ -321,6 +343,19 @@ export function saveAuthUser(user: User, remember = true) {
   } else {
     window.sessionStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
   }
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[auth] user saved', { storage: remember ? 'localStorage' : 'sessionStorage', role: user.role, email: user.email });
+  }
+}
+
+function decodeBase64Utf8(base64: string): string {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return new TextDecoder().decode(bytes);
 }
 
 export function getAuthUser(): User | null {
@@ -333,32 +368,52 @@ export function getAuthUser(): User | null {
     window.sessionStorage.getItem(USER_STORAGE_KEY);
   if (stored) {
     try {
-      return JSON.parse(stored) as User;
+      const user = JSON.parse(stored) as User;
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[auth] getAuthUser from storage', { role: user.role, email: user.email });
+      }
+      return user;
     } catch {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[auth] getAuthUser storage parse failed');
+      }
       return null;
     }
   }
 
   const token = getAuthToken();
   if (!token) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[auth] getAuthUser no token');
+    }
     return null;
   }
 
   const payload = token.split(".")[1];
   if (!payload) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[auth] getAuthUser no payload');
+    }
     return null;
   }
 
   try {
-    const decoded = JSON.parse(atob(payload));
-    return {
+    const decoded = JSON.parse(decodeBase64Utf8(payload));
+    const user = {
       id: decoded.id,
       email: decoded.email ?? "",
       firstName: decoded.firstName ?? "",
       lastName: decoded.lastName ?? "",
       role: decoded.role ?? "PLANNER",
     } as User;
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[auth] getAuthUser from token', { role: user.role, email: user.email });
+    }
+    return user;
   } catch {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[auth] getAuthUser token decode failed');
+    }
     return null;
   }
 }
@@ -371,13 +426,23 @@ export function clearAuth() {
   window.localStorage.removeItem(USER_STORAGE_KEY);
   window.sessionStorage.removeItem(TOKEN_STORAGE_KEY);
   window.sessionStorage.removeItem(USER_STORAGE_KEY);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[auth] clearAuth called');
+  }
 }
 
 export async function login(email: string, password: string) {
-  return apiRequest<{ success: boolean; token?: string; message?: string; data?: User }>("/api/auth/login", {
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[auth] login request', { email });
+  }
+  const result = await apiRequest<{ success: boolean; token?: string; message?: string; data?: User }>("/api/auth/login", {
     method: "POST",
     body: JSON.stringify({ email, password }),
   });
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[auth] login response', { hasError: !!result.error, hasToken: !!result.data?.token, hasUser: !!result.data?.data });
+  }
+  return result;
 }
 
 export async function signup(data: {
@@ -818,5 +883,89 @@ export async function getMaxifyIntegrationInfo(eventId: string, token?: string) 
     headers,
   });
   return { data: result.data?.data ?? null, error: result.error } as ApiResult<MaxifyIntegrationInfo>;
+}
+
+export async function getEventTickets(eventId: string, token?: string) {
+  const headers: Record<string, string> = {};
+  const t = token ?? getAuthToken();
+  if (t) headers.Authorization = `Bearer ${t}`;
+
+  const result = await apiRequest<{ success: boolean; data: Ticket[] }>(`/api/events/${encodeURIComponent(eventId)}/tickets`, {
+    method: "GET",
+    headers,
+  });
+  return { data: result.data?.data ?? null, error: result.error } as ApiResult<Ticket[]>;
+}
+
+export async function getTicketStats(eventId: string, token?: string) {
+  const headers: Record<string, string> = {};
+  const t = token ?? getAuthToken();
+  if (t) headers.Authorization = `Bearer ${t}`;
+
+  const result = await apiRequest<{ success: boolean; data: TicketStats }>(`/api/events/${encodeURIComponent(eventId)}/ticket-stats`, {
+    method: "GET",
+    headers,
+  });
+  return { data: result.data?.data ?? null, error: result.error } as ApiResult<TicketStats>;
+}
+
+export async function getAttendanceData(eventId: string, token?: string) {
+  const headers: Record<string, string> = {};
+  const t = token ?? getAuthToken();
+  if (t) headers.Authorization = `Bearer ${t}`;
+
+  const result = await apiRequest<{ success: boolean; data: AttendanceData }>(`/api/events/${encodeURIComponent(eventId)}/attendance`, {
+    method: "GET",
+    headers,
+  });
+  return { data: result.data?.data ?? null, error: result.error } as ApiResult<AttendanceData>;
+}
+
+export async function getEventAnalytics(eventId: string, token?: string) {
+  const headers: Record<string, string> = {};
+  const t = token ?? getAuthToken();
+  if (t) headers.Authorization = `Bearer ${t}`;
+
+  const result = await apiRequest<{ success: boolean; data: EventAnalytics }>(`/api/events/${encodeURIComponent(eventId)}/analytics`, {
+    method: "GET",
+    headers,
+  });
+  return { data: result.data?.data ?? null, error: result.error } as ApiResult<EventAnalytics>;
+}
+
+export async function getGuestStats(eventId: string, token?: string) {
+  const headers: Record<string, string> = {};
+  const t = token ?? getAuthToken();
+  if (t) headers.Authorization = `Bearer ${t}`;
+
+  const result = await apiRequest<{ success: boolean; data: GuestStats }>(`/api/events/${encodeURIComponent(eventId)}/guest-stats`, {
+    method: "GET",
+    headers,
+  });
+  return { data: result.data?.data ?? null, error: result.error } as ApiResult<GuestStats>;
+}
+
+export async function syncMaxifyEvent(eventId: string, token?: string) {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const t = token ?? getAuthToken();
+  if (t) headers.Authorization = `Bearer ${t}`;
+
+  const result = await apiRequest<{ success: boolean; message?: string; data: Event }>(`/api/events/${encodeURIComponent(eventId)}/maxify/sync`, {
+    method: "POST",
+    headers,
+  });
+  return { data: result.data?.data ?? null, error: result.error } as ApiResult<Event>;
+}
+
+export async function connectMaxifyEvent(eventId: string, token?: string) {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const t = token ?? getAuthToken();
+  if (t) headers.Authorization = `Bearer ${t}`;
+
+  const result = await apiRequest<{ success: boolean; message?: string; data: Event }>(`/api/events/${encodeURIComponent(eventId)}/maxify/connect`, {
+    method: "POST",
+    headers,
+  });
+  return { data: result.data?.data ?? null, error: result.error } as ApiResult<Event>;
 }
 

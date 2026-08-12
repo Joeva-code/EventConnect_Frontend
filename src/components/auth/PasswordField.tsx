@@ -33,12 +33,12 @@ export function PasswordField({
           required
           autoComplete={autoComplete}
           placeholder=" "
-          className="peer w-full rounded-xl border border-slate-200 bg-slate-50 py-3 text-slate-900 placeholder:text-transparent focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/10"
+          className="peer w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-10 text-slate-900 placeholder:text-transparent focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/10"
           {...props}
         />
         <label
           htmlFor={id}
-          className="absolute left-4 top-2.5 text-xs text-slate-400 transition-all peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base peer-focus:top-2.5 peer-focus:text-xs"
+          className="absolute left-4 top-3 text-xs text-slate-400 transition-all peer-placeholder-shown:top-3 peer-placeholder-shown:text-base peer-focus:top-1 peer-focus:text-xs"
         >
           {label}
         </label>

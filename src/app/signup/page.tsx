@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SignUpForm } from "@/components/auth/SignUpForm";
+import { Logo } from "@/components/branding/Logo";
 
 export const metadata: Metadata = {
   title: "Create Account — EventConnect",
@@ -12,14 +13,7 @@ export default function SignUpPage() {
     <div className="min-h-screen bg-white flex flex-col">
       <header className="w-full animate-fade-in">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 py-3.5 sm:py-4 flex items-center justify-between">
-          <Link href="/" className="inline-flex items-center gap-2 transition-opacity hover:opacity-80">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-sm font-bold text-white">
-              e
-            </span>
-            <span className="text-lg font-semibold text-slate-900">
-              Event<span className="text-blue-600">Connect</span>
-            </span>
-          </Link>
+          <Logo iconOnly size="lg" />
           <Link
             href="/signin"
             className="inline-flex shrink-0 items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-blue-600/20 transition-colors hover:bg-blue-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/30"

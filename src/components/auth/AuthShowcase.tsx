@@ -1,6 +1,6 @@
 import Image from "next/image";
-import Link from "next/link";
 import { Star, ShieldCheck, Wallet, Chat } from "../landing/icons";
+import { Logo } from "@/components/branding/Logo";
 
 const points = [
   { icon: ShieldCheck, text: "Every vendor is ID-verified" },
@@ -14,14 +14,7 @@ export function AuthShowcase() {
       <div className="pointer-events-none absolute -top-24 -right-24 h-80 w-80 rounded-full bg-white/10 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-32 -left-16 h-96 w-96 rounded-full bg-blue-400/20 blur-3xl" />
 
-      <Link href="/" className="relative flex items-center gap-2">
-        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-sm font-bold text-blue-600">
-          e
-        </span>
-        <span className="text-lg font-semibold">
-          Event<span className="text-blue-200">Connect</span>
-        </span>
-      </Link>
+      <Logo className="relative" />
 
       <div className="relative mt-12 max-w-md">
         <h2 className="text-4xl font-bold leading-tight tracking-tight">
