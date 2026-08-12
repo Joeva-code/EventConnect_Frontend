@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SignInForm } from "@/components/auth/SignInForm";
 import { signInContent } from "@/data/signin";
+import { Logo } from "@/components/branding/Logo";
 
 export const metadata: Metadata = {
   title: signInContent.meta.title,
@@ -14,17 +15,7 @@ export default function SignInPage() {
       {/* Compact header: logo left, switch-to-signup right */}
       <header className="w-full animate-fade-in">
         <div className="mx-auto max-w-7xl px-5 sm:px-8 py-4 sm:py-5 flex items-center justify-between">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 transition-opacity hover:opacity-80"
-          >
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-sm font-bold text-white">
-              e
-            </span>
-            <span className="text-lg font-semibold text-slate-900">
-              Event<span className="text-blue-600">Connect</span>
-            </span>
-          </Link>
+          <Logo iconOnly size="lg" />
 
           <Link
             href="/signup"

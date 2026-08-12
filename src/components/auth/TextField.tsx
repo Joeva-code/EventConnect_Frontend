@@ -24,8 +24,8 @@ export function TextField({ label, icon, id, ...props }: TextFieldProps) {
         />
         <label
           htmlFor={id}
-          className={`absolute left-4 top-2.5 text-xs text-slate-400 transition-all peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base peer-focus:top-2.5 peer-focus:text-xs ${
-            icon ? "pl-0" : ""
+          className={`absolute left-4 top-3 text-xs text-slate-400 transition-all peer-placeholder-shown:top-3 peer-placeholder-shown:text-base peer-focus:top-1 peer-focus:text-xs ${
+            icon ? "peer-placeholder-shown:left-4 peer-focus:left-11" : ""
           }`}
         >
           {label}

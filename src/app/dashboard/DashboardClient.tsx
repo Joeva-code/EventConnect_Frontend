@@ -2,31 +2,37 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { clearAuth, getAuthToken, getAuthUser, getEnquiries, getMyAvailability, getMyVendorProfile, getVendors, saveAuthUser, type Enquiry, type User, updateEnquiryStatus, updateMyAvailability, updateMyVendorProfile, updateProfile, uploadProfileImage, createPortfolioItem, deletePortfolioItem } from "@/lib/api";
+import { clearAuth, getAuthToken, getAuthUser, getEnquiries, getEvents, getMyAvailability, getMyVendorProfile, getVendors, saveAuthUser, type Enquiry, type Event, type User, updateEnquiryStatus, updateMyAvailability, updateMyVendorProfile, updateProfile, uploadProfileImage, createPortfolioItem, deletePortfolioItem, getMaxifyIntegrationInfo, getTicketStats, getAttendanceData, getEventAnalytics, getGuestStats, syncMaxifyEvent, connectMaxifyEvent, type TicketStats, type AttendanceData, type EventAnalytics, type GuestStats, type MaxifyIntegrationInfo } from "@/lib/api";
 import { Footer } from "@/components/landing/Footer";
 import { Header } from "@/components/landing/Header";
-import { VendorCard } from "@/components/vendors/VendorCard";
 import { BookingModal } from "@/components/vendors/BookingModal";
 import { VendorDirectory } from "@/components/vendors/VendorDirectory";
 import type { Vendor as DirectoryVendor } from "@/data/vendors";
-import { Search, Bell } from "@/components/landing/icons";
+import { Search, Bell, Calendar, Ticket, Message, Check, Info, LayoutDashboard, User as UserIcon, Settings, Plus, Users, LogOut } from "@/components/landing/icons";
 import Image from "next/image";
 import { EnquiryChat } from "@/components/enquiries/EnquiryChat";
-import { EVENT_TYPES, FALLBACK_AVATAR_IMAGE, getEventTypeImage } from "@/lib/images";
+import { FALLBACK_AVATAR_IMAGE } from "@/lib/images";
+import { Logo } from "@/components/branding/Logo";
 
 type PlannerSection =
   | "Dashboard"
+  | "My Events"
+  | "MaxifyTickets"
   | "Discover Vendors"
   | "Messages"
   | "Profile"
   | "Settings";
 
-const plannerNavItems: Array<{ id: PlannerSection; label: string }> = [
-  { id: "Dashboard", label: "Dashboard" },
-  { id: "Discover Vendors", label: "Discover Vendors" },
-  { id: "Messages", label: "Messages" },
-  { id: "Profile", label: "Profile" },
-  { id: "Settings", label: "Settings" },
+type PlannerNavItem = { id: PlannerSection; label: string; icon?: React.ReactNode };
+
+const plannerNavItems: PlannerNavItem[] = [
+  { id: "Dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" /> },
+  { id: "My Events", label: "My Events", icon: <Calendar className="h-4 w-4" /> },
+  { id: "MaxifyTickets", label: "MaxifyTickets", icon: <Ticket className="h-4 w-4" /> },
+  { id: "Discover Vendors", label: "Find Vendors", icon: <Search className="h-4 w-4" /> },
+  { id: "Messages", label: "Messages", icon: <Message className="h-4 w-4" /> },
+  { id: "Profile", label: "Profile", icon: <UserIcon className="h-4 w-4" /> },
+  { id: "Settings", label: "Settings", icon: <Settings className="h-4 w-4" /> },
 ];
 
 type VendorSection =
@@ -66,6 +72,23 @@ function contactName(enquiry: Enquiry, role: "PLANNER" | "VENDOR") {
   return contact?.name || [contact?.firstName, contact?.lastName].filter(Boolean).join(" ") || contact?.email || "EventConnect user";
 }
 
+function getStatusColor(status: string) {
+  switch (status) {
+    case "DRAFT":
+      return "bg-slate-100 text-slate-700";
+    case "READY":
+      return "bg-blue-100 text-blue-700";
+    case "LAUNCHED":
+      return "bg-emerald-100 text-emerald-700";
+    case "COMPLETED":
+      return "bg-purple-100 text-purple-700";
+    case "CANCELLED":
+      return "bg-rose-100 text-rose-700";
+    default:
+      return "bg-slate-100 text-slate-700";
+  }
+}
+
 export default function DashboardClient() {
   const router = useRouter();
   const [user, setUser] = useState<ReturnType<typeof getAuthUser>>(null);
@@ -82,8 +105,12 @@ export default function DashboardClient() {
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
   const [enquiryError, setEnquiryError] = useState<string | null>(null);
   const [isLoadingEnquiries, setIsLoadingEnquiries] = useState(false);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [isLoadingEvents, setIsLoadingEvents] = useState(true);
+  const [eventsError, setEventsError] = useState<string | null>(null);
   const [chatEnquiry, setChatEnquiry] = useState<Enquiry | null>(null);
   const [readChatIds, setReadChatIds] = useState<Set<string>>(new Set());
+  const [maxifySubPage, setMaxifySubPage] = useState<string>("Overview");
 
   function openChat(enquiry: Enquiry) {
     setReadChatIds((current) => {
@@ -108,6 +135,15 @@ export default function DashboardClient() {
   const [portfolioError, setPortfolioError] = useState<string | null>(null);
   const [isSavingPortfolio, setIsSavingPortfolio] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [selectedMaxifyEventId, setSelectedMaxifyEventId] = useState<string>("");
+  const [ticketStats, setTicketStats] = useState<TicketStats | null>(null);
+  const [attendanceData, setAttendanceData] = useState<AttendanceData | null>(null);
+  const [eventAnalytics, setEventAnalytics] = useState<EventAnalytics | null>(null);
+  const [guestStats, setGuestStats] = useState<GuestStats | null>(null);
+  const [maxifyIntegration, setMaxifyIntegration] = useState<MaxifyIntegrationInfo | null>(null);
+  const [isLoadingMaxify, setIsLoadingMaxify] = useState(false);
+  const [maxifyError, setMaxifyError] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -124,6 +160,18 @@ export default function DashboardClient() {
     setIsLoadingEnquiries(false);
   }
 
+  async function loadEvents() {
+    setIsLoadingEvents(true);
+    setEventsError(null);
+    const result = await getEvents(getAuthToken() ?? undefined);
+    if (result.error) {
+      setEventsError(result.error);
+    } else if (result.data) {
+      setEvents(result.data);
+    }
+    setIsLoadingEvents(false);
+  }
+
   async function loadVendors() {
     const result = await getVendors(getAuthToken() ?? undefined);
     if (result.error) return;
@@ -136,14 +184,91 @@ export default function DashboardClient() {
     void loadEnquiries();
   }
 
+  function goToMyEvents() {
+    router.push("/events");
+  }
+
+  async function loadMaxifyData(eventId: string) {
+    if (!eventId) {
+      setTicketStats(null);
+      setAttendanceData(null);
+      setEventAnalytics(null);
+      setGuestStats(null);
+      setMaxifyIntegration(null);
+      return;
+    }
+
+    setIsLoadingMaxify(true);
+    setMaxifyError(null);
+
+    const [integrationResult, statsResult, attendanceResult, analyticsResult, guestResult] = await Promise.all([
+      getMaxifyIntegrationInfo(eventId),
+      getTicketStats(eventId),
+      getAttendanceData(eventId),
+      getEventAnalytics(eventId),
+      getGuestStats(eventId),
+    ]);
+
+    if (integrationResult.error) setMaxifyError(integrationResult.error);
+    setMaxifyIntegration(integrationResult.data ?? null);
+    setTicketStats(statsResult.data ?? null);
+    setAttendanceData(attendanceResult.data ?? null);
+    setEventAnalytics(analyticsResult.data ?? null);
+    setGuestStats(guestResult.data ?? null);
+    setIsLoadingMaxify(false);
+  }
+
+  async function handleSyncMaxify() {
+    if (!selectedMaxifyEventId) return;
+    setIsSyncing(true);
+    const result = await syncMaxifyEvent(selectedMaxifyEventId);
+    if (result.error) {
+      setMaxifyError(result.error);
+    } else {
+      void loadMaxifyData(selectedMaxifyEventId);
+    }
+    setIsSyncing(false);
+  }
+
+  async function handleConnectMaxify() {
+    if (!selectedMaxifyEventId) return;
+    setIsSyncing(true);
+    const result = await connectMaxifyEvent(selectedMaxifyEventId);
+    if (result.error) {
+      setMaxifyError(result.error);
+    } else {
+      void loadMaxifyData(selectedMaxifyEventId);
+    }
+    setIsSyncing(false);
+  }
+
+  useEffect(() => {
+    if (events.length > 0 && !selectedMaxifyEventId) {
+      setSelectedMaxifyEventId(events[0].id);
+    }
+  }, [events, selectedMaxifyEventId]);
+
+  useEffect(() => {
+    if (selectedMaxifyEventId) {
+      void loadMaxifyData(selectedMaxifyEventId);
+    }
+  }, [selectedMaxifyEventId]);
+
   useEffect(() => {
     const authUser = getAuthUser();
     setUser(authUser);
 
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[auth] DashboardClient mount', { hasUser: !!authUser, role: authUser?.role });
+    }
+
     if (authUser) {
-      setIsLoading(false);
-      void loadEnquiries();
-      if (authUser.role.toUpperCase() === "VENDOR") {
+        setIsLoading(false);
+        void loadEnquiries();
+        if (authUser.role.toUpperCase() === "PLANNER") {
+          void loadEvents();
+        }
+        if (authUser.role.toUpperCase() === "VENDOR") {
         void loadVendors();
         void getMyVendorProfile(getAuthToken() ?? undefined).then((result) => {
           if (!result.error && result.data) {
@@ -225,6 +350,12 @@ export default function DashboardClient() {
     };
   }, [selectedFile]);
 
+  useEffect(() => {
+    if (activeSection === "My Events") {
+      router.push("/events");
+    }
+  }, [activeSection, router]);
+
   async function handleSaveProfile() {
     if (!user) return;
     setIsSaving(true);
@@ -295,6 +426,8 @@ export default function DashboardClient() {
   const isPlanner = role === "PLANNER";
   const isVendor = role === "VENDOR";
   const greetingName = user.firstName || user.email.split("@")[0];
+  const hour = new Date().getHours();
+  const greetingTime = hour >= 5 && hour < 12 ? "morning" : hour >= 12 && hour < 18 ? "afternoon" : "evening";
   const currentEnquiries = enquiryList(enquiries);
   const pendingEnquiries = currentEnquiries.filter((enquiry) => enquiry.status?.toUpperCase?.() === "NEW");
   const acceptedEnquiries = currentEnquiries.filter((enquiry) => enquiry.status?.toUpperCase?.() === "BOOKED");
@@ -325,19 +458,6 @@ export default function DashboardClient() {
 
     return (
       <div className="flex min-h-screen flex-col bg-slate-100">
-        <Header
-          user={{
-            firstName: user.firstName,
-            lastName: user.lastName,
-            avatarUrl: user.avatar ?? undefined,
-          }}
-          onLogout={() => {
-            clearAuth();
-            router.replace("/");
-          }}
-          links={[]}
-        />
-
         <main className="flex-1 px-4 py-8 sm:px-6 lg:px-10">
           <div className="mx-auto grid max-w-[1700px] gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
             <aside className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
@@ -397,6 +517,18 @@ export default function DashboardClient() {
                   Our vendor success team can help with enquiries, payments, and profile updates.
                 </p>
               </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  clearAuth();
+                  router.replace("/");
+                }}
+                className="mt-6 flex w-full items-center gap-3 rounded-3xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+              >
+                <LogOut className="h-4 w-4" />
+                Log out
+              </button>
             </aside>
 
             <section className="space-y-6">
@@ -770,9 +902,8 @@ export default function DashboardClient() {
             }
              </section>
           </div>
-        </main>
+         </main>
 
-        <Footer />
         {chatEnquiry ? <EnquiryChat enquiry={chatEnquiry} currentUser={user as User} onClose={() => setChatEnquiry(null)} /> : null}
       </div>
     );
@@ -858,18 +989,6 @@ export default function DashboardClient() {
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-100">
-      <Header
-        user={{
-          firstName: user.firstName,
-          lastName: user.lastName,
-          avatarUrl: user.avatar ?? undefined,
-        }}
-        onLogout={() => {
-          clearAuth();
-          router.replace("/");
-        }}
-        links={[]}
-      />
       <main className="flex-1 px-4 py-8 sm:px-6 lg:px-10">
         <div className="mx-auto grid max-w-[1700px] gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
           {/* Mobile sidebar toggle */}
@@ -900,55 +1019,62 @@ export default function DashboardClient() {
                 </svg>
               </button>
             </div>
-          <div className="mb-6 rounded-[28px] bg-slate-50 p-5">
-            <div className="flex items-center gap-3">
-              {user.avatar ? (
-                <Image
-                  src={user.avatar}
-                  alt={`${user.firstName ?? "User"} profile`}
-                  width={48}
-                  height={48}
-                  className="rounded-full object-cover"
-                  onError={(e) => {
-                    const target = e.currentTarget;
-                    target.onerror = null;
-                    target.src = FALLBACK_AVATAR_IMAGE;
-                  }}
-                />
-              ) : (
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white shadow-sm">
-                  {(() => {
-                    const initials = [user.firstName, user.lastName]
-                      .filter(Boolean)
-                      .map((name) => name?.[0].toUpperCase())
-                      .join("");
-                    return initials || "U";
-                  })()}
-                </div>
-              )}
-              <div>
-                <p className="text-sm font-semibold text-slate-950">{user.firstName} {user.lastName}</p>
-                <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Planner</p>
-              </div>
+            <div className="mb-6">
+              <Logo iconOnly size="lg" className="text-lg" />
             </div>
-          </div>
 
-          <nav className="space-y-1">
-            {plannerNavItems.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setActiveSection(item.id)}
-                className={`w-full rounded-3xl px-4 py-3 text-left text-sm font-semibold transition ${
-                  activeSection === item.id
-                    ? "bg-blue-600 text-white shadow"
-                    : "text-slate-700 hover:bg-slate-100"
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
-          </nav>
+            <nav className="space-y-1" aria-label="Planner navigation">
+              {plannerNavItems.map((item) => {
+                const showStatusDot = item.id === "MaxifyTickets" && isPlanner;
+                const isActive = activeSection === item.id;
+
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    aria-current={isActive ? "page" : undefined}
+                    onClick={() => {
+                      if (item.id === "My Events") {
+                        goToMyEvents();
+                      } else {
+                        setActiveSection(item.id);
+                        if (item.id === "MaxifyTickets") {
+                          setMaxifySubPage("Overview");
+                        }
+                      }
+                    }}
+                    className={`flex w-full items-center gap-3 rounded-3xl px-4 py-3 text-left text-sm font-semibold transition ${
+                      isActive
+                        ? "bg-blue-600 text-white shadow"
+                        : "text-slate-700 hover:bg-slate-100"
+                    }`}
+                  >
+                    <span className="flex h-5 w-5 items-center justify-center">{item.icon}</span>
+                    <span className="flex-1">{item.label}</span>
+                    {showStatusDot && (
+                      <span
+                        className={`h-2 w-2 flex-shrink-0 rounded-full ${
+                          maxifyIntegration
+                            ? "bg-emerald-500"
+                            : selectedMaxifyEventId
+                              ? "bg-amber-500"
+                              : "bg-slate-400"
+                        }`}
+                        title={
+                          maxifyIntegration
+                            ? "MaxifyTickets connected"
+                            : selectedMaxifyEventId
+                              ? "MaxifyTickets not connected"
+                              : "Select an event"
+                        }
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </nav>
+
+          <div className="my-4 border-t border-slate-200" />
 
           <div className="mt-10 rounded-[28px] bg-slate-50 p-5">
             <p className="text-sm font-semibold text-slate-900">Need help?</p>
@@ -956,164 +1082,798 @@ export default function DashboardClient() {
               Reach out to support for booking or vendor guidance.
             </p>
           </div>
- 
+
+          <button
+            type="button"
+            onClick={() => {
+              clearAuth();
+              router.replace("/");
+            }}
+            className="mt-6 flex w-full items-center gap-3 rounded-3xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+          >
+            <LogOut className="h-4 w-4" />
+            Log out
+          </button>
         </aside>
 
         <section className="space-y-6">
-          <header className="rounded-[32px] bg-white p-6 shadow-sm">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium text-slate-500">Good Morning, {greetingName} 👋</p>
-                <h1 className="mt-3 text-2xl font-semibold text-slate-950 sm:text-3xl">
-                  {activeSection}
-                </h1>
-                <p className="mt-2 text-sm text-slate-500">
-                  {activeSection === "Dashboard" && "Quickly manage your events, enquiries, and vendor matches."}
-                  {activeSection === "Discover Vendors" && "Browse vendors by category, location, and rating."}
-                  {activeSection === "Messages" && "View vendor enquiries and system messages in one place."}
-                  {activeSection === "Profile" && "Manage your planner profile and account details."}
-                  {activeSection === "Settings" && "Adjust your notification, privacy, and account preferences."}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setActiveSection("Messages")}
-                className="relative rounded-full border border-slate-200 bg-slate-50 p-2.5 text-slate-700 transition hover:bg-slate-100"
-                aria-label="Notifications"
-              >
-                <Bell className="h-5 w-5" />
-                {unreadMessageCount > 0 ? (
-                  <span className="absolute -top-1 -right-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-blue-600 px-1 text-xs font-semibold text-white">
-                    {unreadMessageCount > 99 ? "99+" : unreadMessageCount}
-                  </span>
-                ) : null}
-              </button>
-            </div>
-          </header>
-
           {activeSection === "Dashboard" ? (
             <>
-              <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_280px]">
-                <div className="rounded-[32px] bg-white p-6 shadow-sm">
-                  <div className="flex items-center gap-4 rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                    <Search className="h-5 w-5 text-slate-500" />
+              {/* Dashboard top bar */}
+              <div className="rounded-[32px] bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 flex-1">
+                    <Search className="h-5 w-5 text-slate-400" />
                     <input
                       type="search"
-                      placeholder="Search Wedding, Birthday, Conference..."
+                      placeholder="Search events, vendors, enquiries..."
                       className="w-full bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
                     />
                   </div>
-
-                  <div className="mt-6 grid gap-4 grid-cols-[repeat(auto-fit,minmax(180px,1fr))]">
-                    {statusCards.map((card) => (
-                      <div key={card.title} className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-                        <div className={`inline-flex rounded-2xl px-3 py-1 text-xs font-semibold ${card.accent}`}>
-                          {card.value}
-                        </div>
-                        <p className="mt-5 text-sm font-semibold text-slate-950">{card.title}</p>
-                        <p className="mt-2 text-sm leading-6 text-slate-500">{card.subtitle}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                   <div className="mt-8">
-                     <div className="flex items-center justify-between">
-                       <h2 className="text-xl font-semibold text-slate-950">What type of event are you planning?</h2>
-                       <button type="button" className="text-sm font-semibold text-blue-600 hover:underline">
-                         View all
-                       </button>
-                     </div>
-                      <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                        {(eventTypes.length ? eventTypes : EVENT_TYPES).map((type, index) => (
-                          <button
-                            key={type}
-                            type="button"
-                            className="group relative aspect-[4/3] overflow-hidden rounded-2xl"
-                          >
-                            <Image
-                              src={getEventTypeImage(type, index)}
-                              alt={type}
-                              fill
-                              className="object-cover transition-transform duration-300 group-hover:scale-105"
-                              sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
-                            />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
-                            <div className="absolute bottom-0 left-0 p-4 text-white">
-                              <p className="text-sm font-semibold">{type}</p>
-                            </div>
-                          </button>
-                        ))}
-                       {eventTypes.length === 0 ? <p className="text-sm text-slate-500 col-span-full">Your event types will appear after you send enquiries.</p> : null}
-                     </div>
-                   </div>
-                </div>
-
-                <div className="rounded-[32px] bg-white p-6 shadow-sm">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-500">Enquiry Status</p>
-                      <p className="mt-1 text-base font-semibold text-slate-950">Review your active requests</p>
-                    </div>
-                    <button type="button" onClick={showAllEnquiries} className="text-sm font-semibold text-blue-600 hover:underline">
-                      View all enquiries
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveSection("Messages")}
+                      className="rounded-full border border-slate-200 bg-slate-50 p-2.5 text-slate-700 transition hover:bg-slate-100"
+                      aria-label="Messages"
+                    >
+                      <Message className="h-5 w-5" />
                     </button>
-                  </div>
-
-                  <div className="mt-6 grid gap-4 grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
-                    {statusCards.map((card) => (
-                      <div key={card.title} className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-                        <div className="flex items-center justify-between gap-4">
-                          <div>
-                            <p className="text-sm font-semibold text-slate-950">{card.title}</p>
-                            <p className="mt-1 text-sm text-slate-600">{card.subtitle}</p>
-                          </div>
-                          <div className={`rounded-3xl px-4 py-2 text-sm font-semibold ${card.accent}`}>
-                            {card.value}
-                          </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveSection("Messages")}
+                      className="relative rounded-full border border-slate-200 bg-slate-50 p-2.5 text-slate-700 transition hover:bg-slate-100"
+                      aria-label="Notifications"
+                    >
+                      <Bell className="h-5 w-5" />
+                      {unreadMessageCount > 0 ? (
+                        <span className="absolute -top-1 -right-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-blue-600 px-1 text-xs font-semibold text-white">
+                          {unreadMessageCount > 99 ? "99+" : unreadMessageCount}
+                        </span>
+                      ) : null}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveSection("Profile")}
+                      className="flex items-center gap-3 rounded-full border border-slate-200 bg-slate-50 pl-1 pr-3 py-1 transition hover:bg-slate-100"
+                      aria-label="Profile"
+                    >
+                      {user.avatar ? (
+                        <Image
+                          src={user.avatar}
+                          alt={user.firstName ?? "Profile"}
+                          width={36}
+                          height={36}
+                          className="h-9 w-9 rounded-full object-cover"
+                          onError={(e) => {
+                            const target = e.currentTarget;
+                            target.onerror = null;
+                            target.src = FALLBACK_AVATAR_IMAGE;
+                          }}
+                        />
+                      ) : (
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">
+                          {(() => {
+                            const initials = [user.firstName, user.lastName]
+                              .filter(Boolean)
+                              .map((name) => name?.[0].toUpperCase())
+                              .join("");
+                            return initials || "U";
+                          })()}
                         </div>
-                      </div>
-                    ))}
+                      )}
+                      <span className="hidden sm:block text-sm font-semibold text-slate-700">
+                        {user.firstName} {user.lastName}
+                      </span>
+                    </button>
                   </div>
                 </div>
               </div>
 
-              <section className="rounded-[32px] bg-white p-5 shadow-sm">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              {/* Welcome + Quick Actions */}
+              <div className="rounded-[32px] bg-white p-6 shadow-sm">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-sm font-semibold text-slate-500">Recommended Vendors</p>
-                    <h2 className="mt-1 text-xl font-semibold text-slate-950">Top picks for your event</h2>
+                    <p className="text-sm font-medium text-slate-500">Good {greetingTime}, {greetingName} 👋</p>
+                    <h1 className="mt-2 text-2xl font-semibold text-slate-950 sm:text-3xl">Here&apos;s what&apos;s happening with your events.</h1>
                   </div>
-                  <button type="button" className="text-sm font-semibold text-blue-600 hover:underline">
-                    View all
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => router.push("/events/new")}
+                      className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Create Event
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveSection("Discover Vendors")}
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                    >
+                      <Search className="h-4 w-4" />
+                      Find Vendor
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveSection("MaxifyTickets")}
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                    >
+                      <Ticket className="h-4 w-4" />
+                      Manage Tickets
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveSection("Messages")}
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                    >
+                      <Message className="h-4 w-4" />
+                      View Messages
+                    </button>
+                  </div>
                 </div>
-                <div className="mt-5 grid gap-3 grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
-                  {recommendedVendors.map((vendor) => (
-                    <VendorCard
-                      key={vendor.id}
-                      vendor={vendor}
-                      compact
-                      onBook={(selectedVendor) => {
-                        setBookingError(null);
-                        setBookingNotice(null);
-                        if (!user || user.role.toUpperCase() !== "PLANNER") {
-                          setBookingError("Only planner accounts can send booking requests.");
-                          return;
-                        }
-                        setBookingVendor(selectedVendor);
-                      }}
-                    />
-                  ))}
-                  {recommendedVendors.length === 0 ? <p className="text-sm text-slate-500">No vendor listings are available yet.</p> : null}
+              </div>
+
+              {/* KPI Cards */}
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+                <button
+                  type="button"
+                  onClick={() => router.push("/events")}
+                  className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm text-left transition hover:shadow-md"
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Active Events</p>
+                    <Calendar className="h-5 w-5 text-slate-400" />
+                  </div>
+                  <p className="mt-4 text-3xl font-semibold text-slate-950">
+                    {isLoadingEvents ? "..." : events.filter((e) => e.status === "LAUNCHED" || e.status === "READY").length}
+                  </p>
+                  <p className="mt-2 text-xs text-slate-500">Ready or live right now</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSection("Discover Vendors")}
+                  className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm text-left transition hover:shadow-md"
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Vendors Booked</p>
+                    <Users className="h-5 w-5 text-slate-400" />
+                  </div>
+                  <p className="mt-4 text-3xl font-semibold text-slate-950">{acceptedEnquiries.length}</p>
+                  <p className="mt-2 text-xs text-slate-500">Confirmed bookings</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSection("Messages")}
+                  className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm text-left transition hover:shadow-md"
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Open Enquiries</p>
+                    <Message className="h-5 w-5 text-slate-400" />
+                  </div>
+                  <p className="mt-4 text-3xl font-semibold text-slate-950">{pendingEnquiries.length}</p>
+                  <p className="mt-2 text-xs text-slate-500">Awaiting vendor reply</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => router.push("/events")}
+                  className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm text-left transition hover:shadow-md"
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Guests Registered</p>
+                    <Users className="h-5 w-5 text-slate-400" />
+                  </div>
+                  <p className="mt-4 text-3xl font-semibold text-slate-950">
+                    {isLoadingEvents ? "..." : events.reduce((sum, event) => sum + (event.guestCount || 0), 0)}
+                  </p>
+                  <p className="mt-2 text-xs text-slate-500">Across all events</p>
+                </button>
+              </div>
+
+              {/* Two Column Layout */}
+              <div className="grid gap-6 lg:grid-cols-2">
+                {/* Left Column */}
+                <div className="space-y-6">
+                  {/* Upcoming & Active Events */}
+                  <div className="rounded-[32px] bg-white p-6 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-500">My Events</p>
+                        <h2 className="mt-1 text-2xl font-semibold text-slate-950">Upcoming & active</h2>
+                      </div>
+                      <button type="button" onClick={() => router.push("/events")} className="text-sm font-semibold text-blue-600 hover:underline">
+                        View all
+                      </button>
+                    </div>
+                    <div className="mt-6 space-y-4">
+                      {isLoadingEvents ? (
+                        <p className="text-sm text-slate-500">Loading events...</p>
+                      ) : eventsError ? (
+                        <p className="text-sm text-red-600">{eventsError}</p>
+                      ) : events.length === 0 ? (
+                         <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-8 text-center">
+                           <p className="text-sm text-slate-600">No events yet. Create your first event to get started.</p>
+                           <button
+                             type="button"
+                             onClick={() => router.push("/events/new")}
+                             className="mt-4 rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                           >
+                             Create Event
+                           </button>
+                         </div>
+                       ) : (
+                        events.slice(0, 3).map((event) => (
+                          <div key={event.id} className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                              <div className="flex-1">
+                                <p className="text-sm font-semibold text-slate-950">{event.name}</p>
+                                <p className="mt-1 text-sm text-slate-600">{event.eventType} · {new Date(event.eventDate).toLocaleDateString()}</p>
+                                <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+                                  <span>{event.location}</span>
+                                  <span>·</span>
+                                  <span>{event.guestCount} guests</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className={`rounded-full px-3 py-1 text-xs font-medium ${getStatusColor(event.status)}`}>
+                                  {event.status}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => router.push(`/events/${event.id}`)}
+                                  className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                                >
+                                  Open Event
+                                </button>
+                              </div>
+                            </div>
+                            {event.readinessScore > 0 && (
+                              <div className="mt-4">
+                                <div className="flex items-center justify-between text-sm">
+                                  <span className="text-slate-600">Event Health</span>
+                                  <span className="font-semibold text-slate-900">{event.readinessScore}%</span>
+                                </div>
+                                <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-200">
+                                  <div
+                                    className="h-full rounded-full bg-blue-600 transition-all"
+                                    style={{ width: `${event.readinessScore}%` }}
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Recent Activity */}
+                  <div className="rounded-[32px] bg-white p-6 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-500">Recent Activity</p>
+                        <h2 className="mt-1 text-2xl font-semibold text-slate-950">Latest updates</h2>
+                      </div>
+                    </div>
+                    <div className="mt-6 space-y-4">
+                      {plannerNotifications.length === 0 ? (
+                        <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-8 text-center">
+                          <p className="text-sm text-slate-600">No recent activity yet.</p>
+                        </div>
+                      ) : (
+                        plannerNotifications.map((notification, idx) => (
+                          <div key={`${notification.headline}-${idx}`} className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
+                            <p className="text-sm font-semibold text-slate-950">{notification.headline}</p>
+                            <p className="mt-1 text-sm text-slate-600">{notification.detail}</p>
+                            <p className="mt-2 text-xs uppercase tracking-[0.2em] text-slate-400">{notification.time}</p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
                 </div>
-                {bookingNotice ? <p role="status" className="fixed bottom-5 right-5 z-50 max-w-sm rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800 shadow-lg">{bookingNotice}</p> : null}
-              {bookingError ? <p role="alert" className="fixed bottom-5 right-5 z-50 max-w-sm rounded-2xl border border-yellow-200 bg-yellow-50 p-4 text-sm font-medium text-yellow-900 shadow-lg">{bookingError}</p> : null}
-              </section>
+
+                {/* Right Column */}
+                <div className="space-y-6">
+                  {/* Event Health Overview */}
+                  <div className="rounded-[32px] bg-white p-6 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-500">Event Health</p>
+                        <h2 className="mt-1 text-2xl font-semibold text-slate-950">Overview</h2>
+                      </div>
+                    </div>
+                    <div className="mt-6 space-y-4">
+                      {isLoadingEvents ? (
+                        <p className="text-sm text-slate-500">Loading...</p>
+                      ) : eventsError ? (
+                        <p className="text-sm text-red-600">{eventsError}</p>
+                      ) : events.length === 0 ? (
+                         <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-8 text-center">
+                           <p className="text-sm text-slate-600">Create an event to start tracking event health.</p>
+                           <button
+                             type="button"
+                             onClick={() => router.push("/events/new")}
+                             className="mt-4 rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                           >
+                             Create Event
+                           </button>
+                         </div>
+                       ) : (
+                        events.slice(0, 4).map((event) => (
+                          <div key={event.id} className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
+                            <div className="flex items-center justify-between">
+                              <p className="text-sm font-semibold text-slate-950">{event.name}</p>
+                              <span className={`rounded-full px-3 py-1 text-xs font-medium ${getStatusColor(event.status)}`}>
+                                {event.status}
+                              </span>
+                            </div>
+                            <div className="mt-3">
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-slate-600">Readiness</span>
+                                <span className="font-semibold text-slate-900">{event.readinessScore}%</span>
+                              </div>
+                              <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-200">
+                                <div
+                                  className="h-full rounded-full bg-blue-600 transition-all"
+                                  style={{ width: `${event.readinessScore}%` }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Vendor Network */}
+                  <div className="rounded-[32px] bg-white p-6 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-500">Vendor Network</p>
+                        <h2 className="mt-1 text-2xl font-semibold text-slate-950">Your network</h2>
+                      </div>
+                      <button type="button" onClick={() => setActiveSection("Discover Vendors")} className="text-sm font-semibold text-blue-600 hover:underline">
+                        Find Vendors
+                      </button>
+                    </div>
+                    <div className="mt-6 space-y-4">
+                      {vendorList.length === 0 ? (
+                        <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-8 text-center">
+                          <p className="text-sm text-slate-600">No vendors booked yet.</p>
+                          <p className="mt-1 text-xs text-slate-500">Find vendors for your next event.</p>
+                          <button
+                            type="button"
+                            onClick={() => setActiveSection("Discover Vendors")}
+                            className="mt-4 rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                          >
+                            Find Vendors
+                          </button>
+                        </div>
+                      ) : (
+                        vendorList.slice(0, 4).map((vendor) => (
+                          <div key={vendor.id} className="flex items-center gap-3 rounded-[28px] border border-slate-200 bg-slate-50 p-4">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700">
+                              {vendor.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-slate-950 truncate">{vendor.name}</p>
+                              <p className="text-xs text-slate-500">{vendor.category}</p>
+                            </div>
+                            <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700 shadow-sm">
+                              {vendor.rating > 0 ? `★ ${vendor.rating}` : "New"}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* MaxifyTickets Overview */}
+                  <div className="rounded-[32px] bg-white p-6 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-500">Ticketing</p>
+                        <h2 className="mt-1 text-2xl font-semibold text-slate-950">MaxifyTickets</h2>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setActiveSection("MaxifyTickets")}
+                          className="text-sm font-semibold text-blue-600 hover:underline"
+                        >
+                          Manage Tickets
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mt-6">
+                      {!selectedMaxifyEventId || !maxifyIntegration ? (
+                        <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-6 text-center">
+                          <p className="text-sm text-slate-600">Connect MaxifyTickets</p>
+                          <p className="mt-2 text-xs text-slate-500">Set up ticketing for your events and start managing registrations.</p>
+                          <button
+                            type="button"
+                            onClick={handleConnectMaxify}
+                            disabled={isSyncing || !selectedMaxifyEventId}
+                            className="mt-4 rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                          >
+                            {isSyncing ? "Connecting..." : "Connect MaxifyTickets"}
+                          </button>
+                        </div>
+                      ) : isLoadingMaxify ? (
+                        <p className="text-sm text-slate-500">Loading ticketing data...</p>
+                      ) : ticketStats && ticketStats.ticketTypes.length > 0 ? (
+                        <div className="space-y-4">
+                          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Tickets Sold</p>
+                              <p className="mt-3 text-2xl font-semibold text-slate-950">{ticketStats.totalSold}</p>
+                            </div>
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Remaining</p>
+                              <p className="mt-3 text-2xl font-semibold text-slate-950">{ticketStats.totalCapacity - ticketStats.totalSold}</p>
+                            </div>
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Revenue</p>
+                              <p className="mt-3 text-2xl font-semibold text-slate-950">
+                                {ticketStats.totalRevenue ? `₦${ticketStats.totalRevenue.toLocaleString()}` : "₦0"}
+                              </p>
+                            </div>
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Ticket Types</p>
+                              <p className="mt-3 text-2xl font-semibold text-slate-950">{ticketStats.ticketTypes.length}</p>
+                            </div>
+                          </div>
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-slate-600">Sales Progress</span>
+                              <span className="font-semibold text-slate-900">{ticketStats.percentageSold}%</span>
+                            </div>
+                            <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200">
+                              <div
+                                className="h-full rounded-full bg-blue-600 transition-all"
+                                style={{ width: `${Math.min(ticketStats.percentageSold, 100)}%` }}
+                              />
+                            </div>
+                            <p className="mt-2 text-xs text-slate-500">
+                              {ticketStats.totalSold} of {ticketStats.totalCapacity} tickets sold
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setActiveSection("MaxifyTickets")}
+                              className="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                            >
+                              Manage Tickets
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setActiveSection("MaxifyTickets")}
+                              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                            >
+                              View Attendees
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-6 text-center">
+                          <p className="text-sm text-slate-600">No tickets created yet</p>
+                          <p className="mt-2 text-xs text-slate-500">Create ticket types for your event.</p>
+                          <button
+                            type="button"
+                            onClick={() => setActiveSection("MaxifyTickets")}
+                            className="mt-4 rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                          >
+                            Create Tickets
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </>
           ) : activeSection === "Discover Vendors" ? (
             <div className="rounded-[32px] bg-white p-6 shadow-sm">
-              <VendorDirectory />
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-500">Discover Vendors</p>
+                  <h2 className="mt-1 text-2xl font-semibold text-slate-950">Browse vendors by category, location, and rating</h2>
+                </div>
+              </div>
+              <div className="mt-6">
+                <VendorDirectory />
+              </div>
             </div>
+          ) : activeSection === "MaxifyTickets" ? (
+            <>
+              {/* Header */}
+              <div className="rounded-[32px] bg-white p-6 shadow-sm">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-500">Ticketing</p>
+                    <h2 className="mt-1 text-2xl font-semibold text-slate-950">MaxifyTickets</h2>
+                    <p className="mt-2 text-sm text-slate-500">Manage ticketing, sales, and attendee check-ins for your events.</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {maxifyIntegration?.isDemo && (
+                      <span className="rounded-full bg-blue-100 px-4 py-2 text-sm font-medium text-blue-700">
+                        Partner Demo Environment
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleSyncMaxify}
+                      disabled={isSyncing || !selectedMaxifyEventId}
+                      className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-slate-200"
+                    >
+                      {isSyncing ? "Syncing..." : "Sync Now"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Event Selector */}
+              <div className="rounded-[32px] bg-white p-6 shadow-sm">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3">
+                    <label htmlFor="maxify-event-select" className="text-sm font-semibold text-slate-700">Event:</label>
+                    <select
+                      id="maxify-event-select"
+                      value={selectedMaxifyEventId}
+                      onChange={(e) => setSelectedMaxifyEventId(e.target.value)}
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
+                    >
+                      <option value="">Select an event</option>
+                      {events.map((event) => (
+                        <option key={event.id} value={event.id}>{event.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    {maxifyIntegration ? (
+                      <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700">
+                        <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                        Connected & Synced
+                      </span>
+                    ) : selectedMaxifyEventId ? (
+                      <span className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-4 py-2 text-sm font-medium text-amber-700">
+                        <span className="h-2 w-2 rounded-full bg-amber-500" />
+                        Not Connected
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-4 py-2 text-sm font-medium text-slate-600">
+                        <span className="h-2 w-2 rounded-full bg-slate-400" />
+                        Select an Event
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {!selectedMaxifyEventId && (
+                  <div className="mt-6 rounded-[28px] border border-slate-200 bg-slate-50 p-8 text-center">
+                    <p className="text-sm text-slate-600">No event selected. Choose an EventConnect event above to manage its ticketing.</p>
+                  </div>
+                )}
+                {selectedMaxifyEventId && !maxifyIntegration && (
+                  <div className="mt-6 rounded-[28px] border border-blue-200 bg-blue-50 p-8 text-center">
+                    <p className="text-sm text-blue-800">Ticketing is not connected for this event.</p>
+                    <button
+                      type="button"
+                      onClick={handleConnectMaxify}
+                      disabled={isSyncing}
+                      className="mt-4 rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                    >
+                      {isSyncing ? "Connecting..." : "Connect MaxifyTickets"}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {selectedMaxifyEventId && maxifyIntegration && (
+                <>
+                  {/* KPI Cards */}
+                  <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+                      <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Tickets Sold</p>
+                      <p className="mt-4 text-3xl font-semibold text-slate-950">
+                        {isLoadingMaxify ? "..." : ticketStats?.totalSold ?? 0}
+                      </p>
+                    </div>
+                    <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+                      <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Checked In</p>
+                      <p className="mt-4 text-3xl font-semibold text-slate-950">
+                        {isLoadingMaxify ? "..." : attendanceData?.summary.checkedIn ?? 0}
+                      </p>
+                    </div>
+                    <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+                      <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Attendance Rate</p>
+                      <p className="mt-4 text-3xl font-semibold text-slate-950">
+                        {isLoadingMaxify ? "..." : `${attendanceData?.summary.attendanceRate ?? 0}%`}
+                      </p>
+                    </div>
+                    <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+                      <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Ticket Revenue</p>
+                      <p className="mt-4 text-3xl font-semibold text-slate-950">
+                        {isLoadingMaxify ? "..." : ticketStats?.totalRevenue ? `₦${ticketStats.totalRevenue.toLocaleString()}` : "₦0"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Two Column Layout */}
+                  <div className="grid gap-6 lg:grid-cols-2">
+                    {/* Left Column */}
+                    <div className="space-y-6">
+                      {/* Ticket Sales Overview */}
+                      <div className="rounded-[32px] bg-white p-6 shadow-sm">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-500">Sales</p>
+                            <h2 className="mt-1 text-2xl font-semibold text-slate-950">Ticket Sales Overview</h2>
+                          </div>
+                        </div>
+                        <div className="mt-6">
+                          {isLoadingMaxify ? (
+                            <p className="text-sm text-slate-500">Loading sales data...</p>
+                          ) : ticketStats && ticketStats.ticketTypes.length > 0 ? (
+                            <div className="space-y-4">
+                              {ticketStats.ticketTypes.map((type) => (
+                                <div key={type.id} className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <p className="text-sm font-semibold text-slate-950">{type.name}</p>
+                                      <p className="mt-1 text-xs text-slate-500">₦{type.price.toLocaleString()} per ticket</p>
+                                    </div>
+                                    <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700 shadow-sm">
+                                      {type.percentageSold}% sold
+                                    </span>
+                                  </div>
+                                  <div className="mt-3 flex items-center gap-4 text-sm text-slate-600">
+                                    <span>{type.totalSold} sold</span>
+                                    <span>·</span>
+                                    <span>{type.maxCapacity - type.totalSold} remaining</span>
+                                  </div>
+                                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
+                                    <div
+                                      className="h-full rounded-full bg-blue-600 transition-all"
+                                      style={{ width: `${type.percentageSold}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-slate-500">No ticket sales data available yet.</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Recent Ticket Activity */}
+                      <div className="rounded-[32px] bg-white p-6 shadow-sm">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-500">Activity</p>
+                            <h2 className="mt-1 text-2xl font-semibold text-slate-950">Recent Ticket Activity</h2>
+                          </div>
+                        </div>
+                        <div className="mt-6 space-y-4">
+                          {isLoadingMaxify ? (
+                            <p className="text-sm text-slate-500">Loading activity...</p>
+                          ) : attendanceData?.recentCheckIns && attendanceData.recentCheckIns.length > 0 ? (
+                            attendanceData.recentCheckIns.slice(0, 5).map((checkIn) => (
+                              <div key={checkIn.id} className="flex items-center justify-between rounded-[28px] border border-slate-200 bg-slate-50 p-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                                    <Check className="h-4 w-4" />
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-semibold text-slate-950">{checkIn.name}</p>
+                                    <p className="text-xs text-slate-500">{checkIn.ticketType} · {new Date(checkIn.checkedInAt).toLocaleString()}</p>
+                                  </div>
+                                </div>
+                                <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">Checked In</span>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-sm text-slate-500">No recent ticket activity.</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right Column */}
+                    <div className="space-y-6">
+                      {/* Attendee Check-ins */}
+                      <div className="rounded-[32px] bg-white p-6 shadow-sm">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-500">Check-ins</p>
+                            <h2 className="mt-1 text-2xl font-semibold text-slate-950">Attendee Check-ins</h2>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setMaxifySubPage("Check-ins")}
+                            className="text-sm font-semibold text-blue-600 hover:underline"
+                          >
+                            View Check-ins
+                          </button>
+                        </div>
+                        <div className="mt-6 grid gap-4 grid-cols-1 sm:grid-cols-2">
+                          <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
+                            <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Total Tickets</p>
+                            <p className="mt-4 text-3xl font-semibold text-slate-950">
+                              {isLoadingMaxify ? "..." : guestStats?.expectedGuests ?? attendanceData?.summary.registered ?? 0}
+                            </p>
+                          </div>
+                          <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
+                            <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Checked In</p>
+                            <p className="mt-4 text-3xl font-semibold text-slate-950">
+                              {isLoadingMaxify ? "..." : attendanceData?.summary.checkedIn ?? 0}
+                            </p>
+                          </div>
+                          <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
+                            <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Not Checked In</p>
+                            <p className="mt-4 text-3xl font-semibold text-slate-950">
+                              {isLoadingMaxify ? "..." : attendanceData?.summary.notCheckedIn ?? 0}
+                            </p>
+                          </div>
+                          <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
+                            <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Attendance Rate</p>
+                            <p className="mt-4 text-3xl font-semibold text-slate-950">
+                              {isLoadingMaxify ? "..." : `${attendanceData?.summary.attendanceRate ?? 0}%`}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Quick Actions */}
+                      <div className="rounded-[32px] bg-white p-6 shadow-sm">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-500">Quick Actions</p>
+                            <h2 className="mt-1 text-2xl font-semibold text-slate-950">Manage Ticketing</h2>
+                          </div>
+                        </div>
+                        <div className="mt-6 grid gap-3 grid-cols-1 sm:grid-cols-2">
+                          <button
+                            type="button"
+                            onClick={() => setMaxifySubPage("Ticket Types")}
+                            className="rounded-[28px] border border-slate-200 bg-slate-50 p-4 text-left transition hover:bg-slate-100"
+                          >
+                            <p className="text-sm font-semibold text-slate-900">Create Ticket Type</p>
+                            <p className="mt-1 text-xs text-slate-500">Add VIP, Regular, or custom tickets</p>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setMaxifySubPage("Overview")}
+                            className="rounded-[28px] border border-slate-200 bg-slate-50 p-4 text-left transition hover:bg-slate-100"
+                          >
+                            <p className="text-sm font-semibold text-slate-900">Manage Tickets</p>
+                            <p className="mt-1 text-xs text-slate-500">View and edit ticket inventory</p>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setMaxifySubPage("Sales & Analytics")}
+                            className="rounded-[28px] border border-slate-200 bg-slate-50 p-4 text-left transition hover:bg-slate-100"
+                          >
+                            <p className="text-sm font-semibold text-slate-900">View Sales</p>
+                            <p className="mt-1 text-xs text-slate-500">Track revenue and buyer data</p>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setMaxifySubPage("Check-ins")}
+                            className="rounded-[28px] border border-slate-200 bg-slate-50 p-4 text-left transition hover:bg-slate-100"
+                          >
+                            <p className="text-sm font-semibold text-slate-900">View Check-ins</p>
+                            <p className="mt-1 text-xs text-slate-500">Monitor attendee gate status</p>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </>
           ) : activeSection === "Messages" ? (
             <>
               <div className="rounded-[32px] bg-white p-6 shadow-sm">
@@ -1142,7 +1902,18 @@ export default function DashboardClient() {
                       </div>
                     </div>
                   ))}
-                  {!isLoadingEnquiries && plannerEnquiriesForUser.length === 0 ? <p className="text-sm text-slate-500">You have not sent any booking requests yet.</p> : null}
+                  {!isLoadingEnquiries && plannerEnquiriesForUser.length === 0 ? (
+                    <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-8 text-center">
+                      <p className="text-sm text-slate-600">You have not sent any booking requests yet.</p>
+                      <button
+                        type="button"
+                        onClick={() => setActiveSection("Discover Vendors")}
+                        className="mt-4 rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                      >
+                        Find Vendors
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
@@ -1157,13 +1928,19 @@ export default function DashboardClient() {
                   </button>
                 </div>
                 <div className="mt-6 space-y-4">
-                  {plannerNotifications.map((notification, idx) => (
-                    <div key={`${notification.headline}-${idx}`} className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
-                      <p className="text-sm font-semibold text-slate-950">{notification.headline}</p>
-                      <p className="mt-1 text-sm text-slate-600">{notification.detail}</p>
-                      <p className="mt-2 text-xs uppercase tracking-[0.2em] text-slate-400">{notification.time}</p>
+                  {plannerNotifications.length === 0 ? (
+                    <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-8 text-center">
+                      <p className="text-sm text-slate-600">No notifications yet.</p>
                     </div>
-                  ))}
+                  ) : (
+                    plannerNotifications.map((notification, idx) => (
+                      <div key={`${notification.headline}-${idx}`} className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
+                        <p className="text-sm font-semibold text-slate-950">{notification.headline}</p>
+                        <p className="mt-1 text-sm text-slate-600">{notification.detail}</p>
+                        <p className="mt-2 text-xs uppercase tracking-[0.2em] text-slate-400">{notification.time}</p>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </>
@@ -1230,8 +2007,6 @@ export default function DashboardClient() {
         />
       ) : null}
       {chatEnquiry ? <EnquiryChat enquiry={chatEnquiry} currentUser={user as User} onClose={() => setChatEnquiry(null)} /> : null}
-
-      <Footer />
     </div>
   );
 }
