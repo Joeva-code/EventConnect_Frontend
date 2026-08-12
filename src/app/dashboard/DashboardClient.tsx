@@ -1426,23 +1426,29 @@ export default function DashboardClient() {
                     </div>
                   </div>
 
-                   {/* MaxifyTickets Overview */}
-                   <div className="rounded-[32px] bg-white p-6 shadow-sm">
-                     <div className="flex items-center justify-between">
-                       <div>
-                         <p className="text-sm font-semibold text-slate-500">Ticketing</p>
-                         <h2 className="mt-1 text-2xl font-semibold text-slate-950">MaxifyTickets</h2>
-                       </div>
-                       <div className="flex items-center gap-2">
-                         <button
-                           type="button"
-                           onClick={() => setActiveSection("MaxifyTickets")}
-                           className="text-sm font-semibold text-blue-600 hover:underline"
-                         >
-                           Manage Tickets
-                         </button>
-                       </div>
-                     </div>
+                    {/* MaxifyTickets Overview */}
+                    <div className="rounded-[32px] bg-white p-6 shadow-sm">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-500">Ticketing</p>
+                          <Image
+                            src="/image.png"
+                            alt="Maxify Tickets"
+                            width={120}
+                            height={36}
+                            className="mt-1 h-9 w-auto object-contain"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setActiveSection("MaxifyTickets")}
+                            className="text-sm font-semibold text-blue-600 hover:underline"
+                          >
+                            Manage Tickets
+                          </button>
+                        </div>
+                      </div>
                      <div className="mt-6">
                        {!selectedMaxifyEventId || !maxifyIntegration ? (
                          <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-6 text-center">
