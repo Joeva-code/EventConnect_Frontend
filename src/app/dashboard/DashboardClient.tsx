@@ -23,20 +23,20 @@ type PlannerSection =
   | "Profile"
   | "Settings";
 
-type PlannerNavItem = { id: PlannerSection; label: string; icon?: React.ReactNode; image?: React.ReactNode };
+type PlannerNavItem = { id: PlannerSection; label: string; icon?: React.ReactNode; image?: React.ReactNode; imageClassName?: string };
 
 const plannerNavItems: PlannerNavItem[] = [
   { id: "Dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" /> },
   { id: "My Events", label: "My Events", icon: <Calendar className="h-4 w-4" /> },
-  { id: "MaxifyTickets", label: "MaxifyTickets", image: (
+  { id: "MaxifyTickets", label: "MaxifyTickets", icon: <Ticket className="h-4 w-4" />, image: (
     <Image
       src="/image.png"
       alt="Maxify Tickets"
-      width={120}
-      height={36}
-      className="h-9 w-auto object-contain"
+      width={160}
+      height={48}
+      className="h-12 w-auto object-contain"
     />
-  ) },
+  ), imageClassName: "hover:bg-transparent" },
   { id: "Discover Vendors", label: "Find Vendors", icon: <Search className="h-4 w-4" /> },
   { id: "Messages", label: "Messages", icon: <Message className="h-4 w-4" /> },
   { id: "Profile", label: "Profile", icon: <UserIcon className="h-4 w-4" /> },
@@ -1054,10 +1054,10 @@ export default function DashboardClient() {
                     className={`flex w-full items-center gap-3 rounded-3xl px-4 py-3 text-left text-sm font-semibold transition ${
                       isActive
                         ? "bg-blue-600 text-white shadow"
-                        : "text-slate-700 hover:bg-slate-100"
+                        : item.imageClassName ?? "text-slate-700 hover:bg-slate-100"
                     }`}
                   >
-                    <span className="flex h-5 w-5 items-center justify-center">{item.icon}</span>
+                    {item.icon && <span className="flex h-5 w-5 items-center justify-center">{item.icon}</span>}
                     {item.image ? (
                       <span className="flex-1">{item.image}</span>
                     ) : (
@@ -1438,29 +1438,29 @@ export default function DashboardClient() {
                     </div>
                   </div>
 
-                    {/* MaxifyTickets Overview */}
-                    <div className="rounded-[32px] bg-white p-6 shadow-sm">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-500">Ticketing</p>
-                          <Image
-                            src="/image.png"
-                            alt="Maxify Tickets"
-                            width={120}
-                            height={36}
-                            className="mt-1 h-9 w-auto object-contain"
-                          />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setActiveSection("MaxifyTickets")}
-                            className="text-sm font-semibold text-blue-600 hover:underline"
-                          >
-                            Manage Tickets
-                          </button>
-                        </div>
-                      </div>
+                     {/* MaxifyTickets Overview */}
+                     <div className="rounded-[32px] bg-white p-6 shadow-sm">
+                       <div className="flex items-center justify-between">
+                         <div>
+                           <p className="text-sm font-semibold text-slate-500">Ticketing</p>
+                           <Image
+                             src="/image.png"
+                             alt="Maxify Tickets"
+                             width={200}
+                             height={60}
+                             className="mt-1 h-16 w-auto object-contain"
+                           />
+                         </div>
+                         <div className="flex items-center gap-2">
+                           <button
+                             type="button"
+                             onClick={() => setActiveSection("MaxifyTickets")}
+                             className="text-sm font-semibold text-blue-600 hover:underline"
+                           >
+                             Manage Tickets
+                           </button>
+                         </div>
+                       </div>
                      <div className="mt-6">
                        {!selectedMaxifyEventId || !maxifyIntegration ? (
                          <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-6 text-center">
