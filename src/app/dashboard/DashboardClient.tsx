@@ -1426,151 +1426,152 @@ export default function DashboardClient() {
                     </div>
                   </div>
 
-                  {/* Vendor Network */}
-                  <div className="rounded-[32px] bg-white p-6 shadow-sm">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-500">Vendor Network</p>
-                        <h2 className="mt-1 text-2xl font-semibold text-slate-950">Your network</h2>
-                      </div>
-                      <button type="button" onClick={() => setActiveSection("Discover Vendors")} className="text-sm font-semibold text-blue-600 hover:underline">
-                        Find Vendors
-                      </button>
-                    </div>
-                    <div className="mt-6 space-y-4">
-                      {vendorList.length === 0 ? (
-                        <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-8 text-center">
-                          <p className="text-sm text-slate-600">No vendors booked yet.</p>
-                          <p className="mt-1 text-xs text-slate-500">Find vendors for your next event.</p>
-                          <button
-                            type="button"
-                            onClick={() => setActiveSection("Discover Vendors")}
-                            className="mt-4 rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
-                          >
-                            Find Vendors
-                          </button>
-                        </div>
-                      ) : (
-                        vendorList.slice(0, 4).map((vendor) => (
-                          <div key={vendor.id} className="flex items-center gap-3 rounded-[28px] border border-slate-200 bg-slate-50 p-4">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700">
-                              {vendor.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold text-slate-950 truncate">{vendor.name}</p>
-                              <p className="text-xs text-slate-500">{vendor.category}</p>
-                            </div>
-                            <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700 shadow-sm">
-                              {vendor.rating > 0 ? `★ ${vendor.rating}` : "New"}
-                            </span>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
+                   {/* MaxifyTickets Overview */}
+                   <div className="rounded-[32px] bg-white p-6 shadow-sm">
+                     <div className="flex items-center justify-between">
+                       <div>
+                         <p className="text-sm font-semibold text-slate-500">Ticketing</p>
+                         <h2 className="mt-1 text-2xl font-semibold text-slate-950">MaxifyTickets</h2>
+                       </div>
+                       <div className="flex items-center gap-2">
+                         <button
+                           type="button"
+                           onClick={() => setActiveSection("MaxifyTickets")}
+                           className="text-sm font-semibold text-blue-600 hover:underline"
+                         >
+                           Manage Tickets
+                         </button>
+                       </div>
+                     </div>
+                     <div className="mt-6">
+                       {!selectedMaxifyEventId || !maxifyIntegration ? (
+                         <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-6 text-center">
+                           <p className="text-sm text-slate-600">Connect MaxifyTickets</p>
+                           <p className="mt-2 text-xs text-slate-500">Set up ticketing for your events and start managing registrations.</p>
+                           <button
+                             type="button"
+                             onClick={handleConnectMaxify}
+                             disabled={isSyncing || !selectedMaxifyEventId}
+                             className="mt-4 rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                           >
+                             {isSyncing ? "Connecting..." : "Connect MaxifyTickets"}
+                           </button>
+                         </div>
+                       ) : isLoadingMaxify ? (
+                         <p className="text-sm text-slate-500">Loading ticketing data...</p>
+                       ) : ticketStats && ticketStats.ticketTypes.length > 0 ? (
+                         <div className="space-y-4">
+                           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+                             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                               <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Tickets Sold</p>
+                               <p className="mt-3 text-2xl font-semibold text-slate-950">{ticketStats.totalSold}</p>
+                             </div>
+                             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                               <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Remaining</p>
+                               <p className="mt-3 text-2xl font-semibold text-slate-950">{ticketStats.totalCapacity - ticketStats.totalSold}</p>
+                             </div>
+                             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                               <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Revenue</p>
+                               <p className="mt-3 text-2xl font-semibold text-slate-950">
+                                 {ticketStats.totalRevenue ? `₦${ticketStats.totalRevenue.toLocaleString()}` : "₦0"}
+                               </p>
+                             </div>
+                             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                               <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Ticket Types</p>
+                               <p className="mt-3 text-2xl font-semibold text-slate-950">{ticketStats.ticketTypes.length}</p>
+                             </div>
+                           </div>
+                           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                             <div className="flex items-center justify-between text-sm">
+                               <span className="text-slate-600">Sales Progress</span>
+                               <span className="font-semibold text-slate-900">{ticketStats.percentageSold}%</span>
+                             </div>
+                             <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200">
+                               <div
+                                 className="h-full rounded-full bg-blue-600 transition-all"
+                                 style={{ width: `${Math.min(ticketStats.percentageSold, 100)}%` }}
+                               />
+                             </div>
+                             <p className="mt-2 text-xs text-slate-500">
+                               {ticketStats.totalSold} of {ticketStats.totalCapacity} tickets sold
+                             </p>
+                           </div>
+                           <div className="flex items-center gap-2">
+                             <button
+                               type="button"
+                               onClick={() => setActiveSection("MaxifyTickets")}
+                               className="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                             >
+                               Manage Tickets
+                             </button>
+                             <button
+                               type="button"
+                               onClick={() => setActiveSection("MaxifyTickets")}
+                               className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                             >
+                               View Attendees
+                             </button>
+                           </div>
+                         </div>
+                       ) : (
+                         <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-6 text-center">
+                           <p className="text-sm text-slate-600">No tickets created yet</p>
+                           <p className="mt-2 text-xs text-slate-500">Create ticket types for your event.</p>
+                           <button
+                             type="button"
+                             onClick={() => setActiveSection("MaxifyTickets")}
+                             className="mt-4 rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                           >
+                             Create Tickets
+                           </button>
+                         </div>
+                       )}
+                     </div>
+                   </div>
 
-                  {/* MaxifyTickets Overview */}
-                  <div className="rounded-[32px] bg-white p-6 shadow-sm">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-500">Ticketing</p>
-                        <h2 className="mt-1 text-2xl font-semibold text-slate-950">MaxifyTickets</h2>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setActiveSection("MaxifyTickets")}
-                          className="text-sm font-semibold text-blue-600 hover:underline"
-                        >
-                          Manage Tickets
-                        </button>
-                      </div>
-                    </div>
-                    <div className="mt-6">
-                      {!selectedMaxifyEventId || !maxifyIntegration ? (
-                        <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-6 text-center">
-                          <p className="text-sm text-slate-600">Connect MaxifyTickets</p>
-                          <p className="mt-2 text-xs text-slate-500">Set up ticketing for your events and start managing registrations.</p>
-                          <button
-                            type="button"
-                            onClick={handleConnectMaxify}
-                            disabled={isSyncing || !selectedMaxifyEventId}
-                            className="mt-4 rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-                          >
-                            {isSyncing ? "Connecting..." : "Connect MaxifyTickets"}
-                          </button>
-                        </div>
-                      ) : isLoadingMaxify ? (
-                        <p className="text-sm text-slate-500">Loading ticketing data...</p>
-                      ) : ticketStats && ticketStats.ticketTypes.length > 0 ? (
-                        <div className="space-y-4">
-                          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Tickets Sold</p>
-                              <p className="mt-3 text-2xl font-semibold text-slate-950">{ticketStats.totalSold}</p>
-                            </div>
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Remaining</p>
-                              <p className="mt-3 text-2xl font-semibold text-slate-950">{ticketStats.totalCapacity - ticketStats.totalSold}</p>
-                            </div>
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Revenue</p>
-                              <p className="mt-3 text-2xl font-semibold text-slate-950">
-                                {ticketStats.totalRevenue ? `₦${ticketStats.totalRevenue.toLocaleString()}` : "₦0"}
-                              </p>
-                            </div>
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Ticket Types</p>
-                              <p className="mt-3 text-2xl font-semibold text-slate-950">{ticketStats.ticketTypes.length}</p>
-                            </div>
-                          </div>
-                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="text-slate-600">Sales Progress</span>
-                              <span className="font-semibold text-slate-900">{ticketStats.percentageSold}%</span>
-                            </div>
-                            <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200">
-                              <div
-                                className="h-full rounded-full bg-blue-600 transition-all"
-                                style={{ width: `${Math.min(ticketStats.percentageSold, 100)}%` }}
-                              />
-                            </div>
-                            <p className="mt-2 text-xs text-slate-500">
-                              {ticketStats.totalSold} of {ticketStats.totalCapacity} tickets sold
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setActiveSection("MaxifyTickets")}
-                              className="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
-                            >
-                              Manage Tickets
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setActiveSection("MaxifyTickets")}
-                              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                            >
-                              View Attendees
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-6 text-center">
-                          <p className="text-sm text-slate-600">No tickets created yet</p>
-                          <p className="mt-2 text-xs text-slate-500">Create ticket types for your event.</p>
-                          <button
-                            type="button"
-                            onClick={() => setActiveSection("MaxifyTickets")}
-                            className="mt-4 rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
-                          >
-                            Create Tickets
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                   {/* Vendor Network */}
+                   <div className="rounded-[32px] bg-white p-6 shadow-sm">
+                     <div className="flex items-center justify-between">
+                       <div>
+                         <p className="text-sm font-semibold text-slate-500">Vendor Network</p>
+                         <h2 className="mt-1 text-2xl font-semibold text-slate-950">Your network</h2>
+                       </div>
+                       <button type="button" onClick={() => setActiveSection("Discover Vendors")} className="text-sm font-semibold text-blue-600 hover:underline">
+                         Find Vendors
+                       </button>
+                     </div>
+                     <div className="mt-6 space-y-4">
+                       {vendorList.length === 0 ? (
+                         <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-8 text-center">
+                           <p className="text-sm text-slate-600">No vendors booked yet.</p>
+                           <p className="mt-1 text-xs text-slate-500">Find vendors for your next event.</p>
+                           <button
+                             type="button"
+                             onClick={() => setActiveSection("Discover Vendors")}
+                             className="mt-4 rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                           >
+                             Find Vendors
+                           </button>
+                         </div>
+                       ) : (
+                         vendorList.slice(0, 4).map((vendor) => (
+                           <div key={vendor.id} className="flex items-center gap-3 rounded-[28px] border border-slate-200 bg-slate-50 p-4">
+                             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700">
+                               {vendor.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                             </div>
+                             <div className="flex-1 min-w-0">
+                               <p className="text-sm font-semibold text-slate-950 truncate">{vendor.name}</p>
+                               <p className="text-xs text-slate-500">{vendor.category}</p>
+                             </div>
+                             <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700 shadow-sm">
+                               {vendor.rating > 0 ? `★ ${vendor.rating}` : "New"}
+                             </span>
+                           </div>
+                         ))
+                       )}
+                     </div>
+                   </div>
+
                 </div>
               </div>
             </>
