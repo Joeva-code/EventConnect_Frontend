@@ -25,7 +25,7 @@ export function Logo({
     <a href={href} className={`inline-flex flex-col ${className}`}>
       <span className="flex items-center gap-2">
         <Image
-          src="/eventconnect-logo.svg"
+          src="/Logo EventConnect.svg"
           alt="EventConnect"
           width={340}
           height={100}

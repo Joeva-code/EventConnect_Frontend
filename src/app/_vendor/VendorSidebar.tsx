@@ -113,13 +113,6 @@ export function VendorSidebar({
 
         <div className="my-4 border-t border-slate-200" />
 
-        <div className="mt-10 rounded-[28px] bg-slate-50 p-5">
-          <p className="text-sm font-semibold text-slate-900">Need support?</p>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            Our vendor success team can help with enquiries, payments, and profile updates.
-          </p>
-        </div>
-
         {onLogout ? (
           <button
             type="button"
