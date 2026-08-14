@@ -7,6 +7,7 @@ import { TextField } from "./TextField";
 import { PasswordField } from "./PasswordField";
 import { Mail } from "./icons";
 import { getAuthUser, login, saveAuthToken, saveAuthUser, getCurrentUser, resendVerification } from "@/lib/api";
+import { signInContent } from "@/data/signin";
 
 export function SignInForm() {
   const router = useRouter();
