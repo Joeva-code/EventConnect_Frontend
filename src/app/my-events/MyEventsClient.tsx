@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { getAuthToken, getAuthUser, getCurrentUser, getEvents, saveAuthUser, type Event, type User } from "@/lib/api";
 import { getEventTypeImage, FALLBACK_AVATAR_IMAGE } from "@/lib/images";
-import { Calendar, Clock, MapPin, Plus, Search, Users, DollarSign, Eye, Bell, Message } from "@/components/landing/icons";
+import { Calendar, Clock, MapPin, Plus, Users, DollarSign, Eye, Bell, Message } from "@/components/landing/icons";
 import { PlannerShell, type PlannerSection } from "@/app/_planner/PlannerShell";
 import { CreateEventModal } from "@/components/events/CreateEventModal";
 
@@ -74,7 +74,6 @@ export default function MyEventsClient() {
   const [events, setEvents] = useState<Event[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchValue, setSearchValue] = useState("");
   const [filter, setFilter] = useState<FilterKey>("all");
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
@@ -148,36 +147,44 @@ export default function MyEventsClient() {
   }, [router, reloadKey]);
 
   const filtered = useMemo(() => {
-    const term = searchValue.toLowerCase().trim();
-    const base = term
-      ? events.filter(
-          (e) =>
-            (e.name ?? "").toLowerCase().includes(term) ||
-            (e.eventType ?? "").toLowerCase().includes(term) ||
-            (e.location ?? "").toLowerCase().includes(term),
-        )
-      : events;
-
     switch (filter) {
       case "draft":
-        return base.filter((e) => (e.status?.toUpperCase() ?? "") === "DRAFT");
+        return events.filter((e) => (e.status?.toUpperCase() ?? "") === "DRAFT");
       case "published":
-        return base.filter((e) =>
+        return events.filter((e) =>
           ["READY", "LAUNCHED", "COMPLETED"].includes(e.status?.toUpperCase() ?? ""),
         );
       case "upcoming":
-        return base.filter((e) => isUpcoming(e) && (e.status?.toUpperCase() ?? "") !== "COMPLETED");
+        return events.filter((e) => isUpcoming(e) && (e.status?.toUpperCase() ?? "") !== "COMPLETED");
       case "ongoing":
-        return base.filter((e) => isOngoing(e));
+        return events.filter((e) => isOngoing(e));
       case "completed":
-        return base.filter((e) => (e.status?.toUpperCase() ?? "") === "COMPLETED");
+        return events.filter((e) => (e.status?.toUpperCase() ?? "") === "COMPLETED");
       default:
-        return base;
+        return events;
     }
-  }, [events, searchValue, filter]);
+  }, [events, filter]);
 
   if (!user) {
     return null;
+  }
+
+  const userRole = (user.role || "").toUpperCase();
+  if (userRole !== "PLANNER" && userRole !== "ADMIN") {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center text-sm text-amber-700">
+          Only planners and admins can access this page.
+          <button
+            type="button"
+            onClick={() => router.push("/dashboard")}
+            className="mt-4 rounded-full bg-amber-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-amber-700"
+          >
+            Go to dashboard
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -196,19 +203,8 @@ export default function MyEventsClient() {
       </header>
 
       <div className="rounded-[32px] bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-            <input
-              type="search"
-              value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
-              placeholder="Search by event name, type or venue..."
-              className="w-full rounded-[28px] border border-slate-200 bg-slate-50 py-3 pr-4 pl-10 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-200"
-            />
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <SortButton />
+        <div className="flex flex-wrap items-center gap-2">
+          <SortButton />
           <button
             type="button"
             onClick={() => setCreateModalOpen(true)}
@@ -217,7 +213,6 @@ export default function MyEventsClient() {
             <Plus className="h-4 w-4" />
             Create Event
           </button>
-          </div>
         </div>
       </div>
 

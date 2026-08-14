@@ -341,6 +341,14 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<ApiR
           window.location.href = "/signin";
         }
       } else if (response.status === 403) {
+        const bodyMessage = typeof json === "object" && json !== null ? String((json as Record<string, unknown>).message ?? "") : "";
+        if (bodyMessage.toLowerCase().includes("verify your email")) {
+          clearAuth();
+          if (typeof window !== "undefined") {
+            window.location.href = "/signin?verify=1";
+          }
+          return { data: null, error: "Please verify your email before continuing." };
+        }
         if (process.env.NODE_ENV !== 'production') {
           console.log(`[auth] apiRequest 403 on ${path}`, { method: init.method, path, body: json });
         }
@@ -579,6 +587,13 @@ export async function signup(data: {
   });
 }
 
+export async function resendVerification(email: string) {
+  return apiRequest<{ success: boolean; message?: string }>("/api/auth/resend-verification", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
 export async function getVendors(token?: string) {
   const unwrap = (value: unknown): Vendor[] => {
     if (Array.isArray(value)) return value.map((vendor) => {
@@ -642,7 +657,7 @@ export async function getVendors(token?: string) {
 }
 
 export async function getVendorAvailability(vendorId: string) {
-  const result = await apiRequest<{ data?: VendorAvailability } & VendorAvailability>(`/api/search/vendors/${encodeURIComponent(vendorId)}/availability`, { method: "GET", credentials: "omit" });
+  const result = await apiRequest<{ data?: VendorAvailability } & VendorAvailability>(`/api/search/vendors/${encodeURIComponent(vendorId)}/availability`, { method: "GET" });
   return { data: result.data?.data ?? result.data ?? null, error: result.error } as ApiResult<VendorAvailability>;
 }
 

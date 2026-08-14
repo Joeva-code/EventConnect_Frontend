@@ -623,7 +623,7 @@ export default function DashboardClient() {
   }
 
   const role = user.role?.toUpperCase?.() ?? "";
-  const isPlanner = role === "PLANNER";
+  const isPlanner = role === "PLANNER" || role === "ADMIN";
   const isVendor = role === "VENDOR";
   const isAdmin = role === "ADMIN";
 
