@@ -65,8 +65,7 @@ export default function NewEventPage() {
       }, token ?? undefined);
 
       if (result.error) {
-        const message = String(result.error ?? "");
-        const isPermissionError = /permission/i.test(message) || message.includes("403");
+        const isPermissionError = result.statusCode === 403;
         if (isPermissionError) {
           const me = await getCurrentUser();
           if (me.data) {
@@ -77,26 +76,16 @@ export default function NewEventPage() {
               router.replace("/dashboard");
               return;
             }
-            const retry = await createEvent({
-              name,
-              eventType,
-              eventDate: new Date(eventDate).toISOString(),
-              location,
-              guestCount: parseInt(guestCount, 10),
-            }, getAuthToken() ?? undefined);
-            if (retry.error) {
-              setError(retry.error);
-            } else if (retry.data) {
-              router.push(`/events/${retry.data.id}`);
-            }
+            setError("Permission error. Please refresh your session and try again.");
+            setIsSubmitting(false);
           } else {
             clearAuth();
             router.replace("/signin");
           }
         } else {
           setError(result.error);
+          setIsSubmitting(false);
         }
-        setIsSubmitting(false);
       } else if (result.data) {
         router.push(`/events/${result.data.id}`);
       }

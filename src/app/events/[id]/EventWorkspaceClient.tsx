@@ -165,8 +165,7 @@ export default function EventWorkspaceClient({ eventId }: { eventId: string }) {
       ]);
 
       if (eventResult.error && !eventResult.data) {
-        const message = String(eventResult.error ?? "");
-        const isPermissionError = /permission/i.test(message) || message.includes("403");
+        const isPermissionError = eventResult.statusCode === 403;
         if (isPermissionError) {
           const me = await getCurrentUser();
           if (me.data) {

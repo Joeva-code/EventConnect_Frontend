@@ -41,7 +41,9 @@ export function VendorDirectory() {
         setBackendError(result.error);
         setVendorList([]);
       } else if (result.data && Array.isArray(result.data)) {
-        const mapped = (result.data as BackendVendor[]).map((v) => ({
+        const mapped = (result.data as BackendVendor[])
+          .filter((vendor) => vendor.isPublished !== false)
+          .map((v) => ({
           id: v.id,
           userId: v.user?.id ?? v.userId ?? v.id,
           name: v.businessName || [v.user?.firstName, v.user?.lastName].filter(Boolean).join(" ") || "Vendor",

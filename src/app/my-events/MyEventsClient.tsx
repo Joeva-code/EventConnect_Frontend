@@ -102,8 +102,7 @@ export default function MyEventsClient() {
       const result = await getEvents(getAuthToken() ?? undefined);
 
       if (result.error) {
-        const message = String(result.error ?? "");
-        const isPermissionError = /permission/i.test(message) || message.includes("403");
+        const isPermissionError = result.statusCode === 403;
 
         if (isPermissionError) {
           const me = await getCurrentUser();
