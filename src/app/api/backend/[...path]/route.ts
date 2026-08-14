@@ -7,6 +7,9 @@ const REQUEST_HEADERS_TO_REMOVE = [
   "host",
   "connection",
   "content-length",
+  "expect",
+  "te",
+  "trailer",
 ];
 
 const RESPONSE_HEADERS_TO_REMOVE = ["connection", "content-encoding", "content-length", "transfer-encoding"];
