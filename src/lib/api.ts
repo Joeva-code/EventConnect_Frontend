@@ -21,6 +21,7 @@ export type ApiError = {
 export type ApiResult<T> = {
   data: T | null;
   error: string | null;
+  statusCode?: number;
 };
 
 export type User = {
@@ -251,6 +252,7 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<ApiR
       return {
         data: null,
         error: "The request took too long. Please check your connection and try again.",
+        statusCode: 408,
       };
     }
     return {
@@ -334,12 +336,13 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<ApiR
               window.location.href = "/signin";
             }
           }
-          return { data: null, error: retryMessage };
+          return { data: null, error: retryMessage, statusCode: retryResponse.status };
         }
         clearAuth();
         if (typeof window !== "undefined") {
           window.location.href = "/signin";
         }
+        return { data: null, error: message, statusCode: 401 };
       } else if (response.status === 403) {
         const bodyMessage = typeof json === "object" && json !== null ? String((json as Record<string, unknown>).message ?? "") : "";
         if (bodyMessage.toLowerCase().includes("verify your email")) {
@@ -347,14 +350,15 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<ApiR
           if (typeof window !== "undefined") {
             window.location.href = "/signin?verify=1";
           }
-          return { data: null, error: "Please verify your email before continuing." };
+          return { data: null, error: "Please verify your email before continuing.", statusCode: 403 };
         }
         if (process.env.NODE_ENV !== 'production') {
           console.log(`[auth] apiRequest 403 on ${path}`, { method: init.method, path, body: json });
         }
+        return { data: null, error: message, statusCode: 403 };
       }
 
-      return { data: null, error: message };
+      return { data: null, error: message, statusCode: response.status };
     }
 
   return { data: json as T, error: null };
@@ -365,66 +369,78 @@ export interface RefreshResult {
   user: User;
 }
 
+let refreshPromise: Promise<RefreshResult | null> | null = null;
+
 export async function refreshToken(): Promise<RefreshResult | null> {
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('[auth] attempting token refresh');
+  if (refreshPromise) {
+    return refreshPromise;
   }
-  try {
-    const currentToken = getAuthToken();
-    const refreshHeaders: Record<string, string> = { "Content-Type": "application/json" };
-    if (currentToken) {
-      refreshHeaders.Authorization = `Bearer ${currentToken}`;
+
+  refreshPromise = (async () => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[auth] attempting token refresh');
     }
+    try {
+      const currentToken = getAuthToken();
+      const refreshHeaders: Record<string, string> = { "Content-Type": "application/json" };
+      if (currentToken) {
+        refreshHeaders.Authorization = `Bearer ${currentToken}`;
+      }
 
-    const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
-      method: "POST",
-      credentials: "include",
-      headers: refreshHeaders,
-      body: currentToken ? JSON.stringify({ token: currentToken }) : undefined,
-    });
+      const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+        method: "POST",
+        credentials: "include",
+        headers: refreshHeaders,
+        body: currentToken ? JSON.stringify({ token: currentToken }) : undefined,
+      });
 
-    if (!response.ok) {
+      if (!response.ok) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[auth] token refresh failed', { status: response.status });
+        }
+        return null;
+      }
+
+      const text = await response.text();
+      const body = text ? JSON.parse(text) : null;
+      const data = body?.data ?? body;
+      const token = body?.token ?? data?.token;
+      const refreshedUser = body?.user ?? data?.user ?? body?.user ?? data?.data?.user;
+
+      if (token) {
+        saveAuthToken(token, true);
+        let freshUser = getAuthUser();
+        if (refreshedUser) {
+          freshUser = refreshedUser as User;
+          saveAuthUser(freshUser, true);
+        } else {
+          const me = await apiRequest<User>("/api/auth/me", { method: "GET", headers: { Authorization: `Bearer ${token}` } });
+          if (!me.error && me.data) {
+            freshUser = me.data;
+            saveAuthUser(freshUser, true);
+          }
+        }
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[auth] token refresh successful', { role: freshUser?.role });
+        }
+        return { token, user: freshUser as User };
+      }
+
       if (process.env.NODE_ENV !== 'production') {
-        console.log('[auth] token refresh failed', { status: response.status });
+        console.log('[auth] token refresh response missing token', { bodyKeys: Object.keys(body || {}) });
       }
       return null;
-    }
-
-    const text = await response.text();
-    const body = text ? JSON.parse(text) : null;
-    const data = body?.data ?? body;
-    const token = body?.token ?? data?.token;
-    const refreshedUser = body?.user ?? data?.user ?? body?.user ?? data?.data?.user;
-
-    if (token) {
-      saveAuthToken(token, true);
-      let freshUser = getAuthUser();
-      if (refreshedUser) {
-        freshUser = refreshedUser as User;
-        saveAuthUser(freshUser, true);
-      } else {
-        const me = await apiRequest<User>("/api/auth/me", { method: "GET", headers: { Authorization: `Bearer ${token}` } });
-        if (!me.error && me.data) {
-          freshUser = me.data;
-          saveAuthUser(freshUser, true);
-        }
-      }
+    } catch (err) {
       if (process.env.NODE_ENV !== 'production') {
-        console.log('[auth] token refresh successful', { role: freshUser?.role });
+        console.log('[auth] token refresh error', { error: String((err as Error)?.message ?? err) });
       }
-      return { token, user: freshUser as User };
+      return null;
+    } finally {
+      refreshPromise = null;
     }
+  })();
 
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[auth] token refresh response missing token', { bodyKeys: Object.keys(body || {}) });
-    }
-    return null;
-  } catch (err) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[auth] token refresh error', { error: String((err as Error)?.message ?? err) });
-    }
-    return null;
-  }
+  return refreshPromise;
 }
 
 export const GOOGLE_AUTH_URL =
@@ -496,11 +512,18 @@ export function getAuthUser(): User | null {
     window.sessionStorage.getItem(USER_STORAGE_KEY);
   if (stored) {
     try {
-      const user = JSON.parse(stored) as User;
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('[auth] getAuthUser from storage', { role: user.role, email: user.email });
+      const user = JSON.parse(stored) as Partial<User>;
+      if (!user?.id || typeof user.role !== "string" || user.role.trim() === "") {
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[auth] getAuthUser storage rejected invalid user', { role: user?.role });
+        }
+        return null;
       }
-      return user;
+      const validUser = user as User;
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[auth] getAuthUser from storage', { role: validUser.role, email: validUser.email });
+      }
+      return validUser;
     } catch {
       if (process.env.NODE_ENV !== 'production') {
         console.log('[auth] getAuthUser storage parse failed');
@@ -527,12 +550,15 @@ export function getAuthUser(): User | null {
 
   try {
     const decoded = JSON.parse(decodeBase64Utf8(payload));
+    if (!decoded?.id || typeof decoded.role !== "string" || decoded.role.trim() === "") {
+      return null;
+    }
     const user = {
       id: decoded.id,
       email: decoded.email ?? "",
       firstName: decoded.firstName ?? "",
       lastName: decoded.lastName ?? "",
-      role: decoded.role ?? "",
+      role: decoded.role,
     } as User;
     if (process.env.NODE_ENV !== 'production') {
       console.log('[auth] getAuthUser from token', { role: user.role, email: user.email });
@@ -556,6 +582,16 @@ export function clearAuth() {
   window.sessionStorage.removeItem(USER_STORAGE_KEY);
   if (process.env.NODE_ENV !== 'production') {
     console.log('[auth] clearAuth called');
+  }
+}
+
+export async function logout() {
+  try {
+    await apiRequest<void>("/api/auth/logout", { method: "POST", credentials: "include" });
+  } catch {
+    // ignore logout errors, clear local state anyway
+  } finally {
+    clearAuth();
   }
 }
 

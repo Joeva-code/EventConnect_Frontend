@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import { Calendar, Message, Search, LayoutDashboard, LogOut, User as UserIcon, Ticket } from "@/components/landing/icons";
 import { Logo } from "@/components/branding/Logo";
-import { USER_STORAGE_KEY, TOKEN_STORAGE_KEY } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 
 export type PlannerSection =
   | "Dashboard"
@@ -28,14 +28,14 @@ export const plannerNavItems: PlannerNavItem[] = [
   { id: "Dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" />, href: "/dashboard" },
   { id: "My Events", label: "My Events", icon: <Calendar className="h-4 w-4" />, href: "/my-events" },
    { id: "MaxifyTickets", label: "MaxifyTickets", icon: <Ticket className="h-4 w-4" />, href: "/dashboard#maxify-tickets", image: (
-    <Image
-      src="/image.png"
-      alt="Maxify Tickets"
-      width={160}
-      height={48}
-      className="h-12 w-auto object-contain"
-    />
-  ), imageClassName: "hover:bg-transparent" },
+     <Image
+       src="/image.png"
+       alt="Maxify Tickets"
+       width={160}
+       height={48}
+       className="h-12 w-auto object-contain"
+     />
+   ), imageClassName: "hover:bg-transparent" },
   { id: "Discover Vendors", label: "Find Vendors", icon: <Search className="h-4 w-4" />, href: "/dashboard#discover-vendors" },
   { id: "Messages", label: "Messages", icon: <Message className="h-4 w-4" />, href: "/dashboard#messages" },
   { id: "Profile", label: "Profile", icon: <UserIcon className="h-4 w-4" />, href: "/dashboard#profile" },
@@ -54,17 +54,14 @@ export function PlannerShell({
 }: PlannerShellProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const { logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [hash, setHash] = useState<string>("");
 
-  // Keep the hash in sync so active highlighting tracks the current route even
-  // after navigation / direct URL access (e.g. /dashboard#messages).
   useEffect(() => {
     setHash(typeof window !== "undefined" ? window.location.hash.slice(1) : "");
   }, [pathname]);
 
-  // Derive the active item from the current route instead of relying on the
-  // manually-passed section state, which can drift after navigation.
   const derivedActive: PlannerSection =
     plannerNavItems.find((item) => {
       if (!item.href) return item.id === activeSection;
@@ -82,13 +79,8 @@ export function PlannerShell({
     }
   };
 
-  const handleLogout = () => {
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem(TOKEN_STORAGE_KEY);
-      window.localStorage.removeItem(USER_STORAGE_KEY);
-      window.sessionStorage.removeItem(TOKEN_STORAGE_KEY);
-      window.sessionStorage.removeItem(USER_STORAGE_KEY);
-    }
+  const handleLogout = async () => {
+    await logout();
     router.replace("/");
   };
 
@@ -96,7 +88,6 @@ export function PlannerShell({
     <div className="flex min-h-screen flex-col bg-slate-100">
       <main className="flex-1 px-4 py-8 sm:px-6 lg:px-10">
         <div className="mx-auto grid max-w-[1700px] gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
-          {/* Mobile sidebar toggle */}
           <div className="xl:hidden">
             <button
               type="button"
@@ -110,7 +101,6 @@ export function PlannerShell({
             </button>
           </div>
 
-          {/* Sidebar overlay for mobile */}
           {sidebarOpen ? (
             <div className="fixed inset-0 z-40 bg-slate-900/40 xl:hidden" onClick={() => setSidebarOpen(false)} />
           ) : null}
@@ -152,10 +142,10 @@ export function PlannerShell({
                       ) : (
                         <span className="flex-1">{item.label}</span>
                       )}
-                  </button>
-                );
-              })}
-            </nav>
+                    </button>
+                  );
+                })}
+              </nav>
 
             <div className="my-4 border-t border-slate-200" />
 

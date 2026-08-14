@@ -31,8 +31,7 @@ export default function EventsClient() {
     getEvents()
       .then((result) => {
         if (result.error) {
-          const message = String(result.error ?? "");
-          const isPermissionError = /permission/i.test(message) || message.includes("403");
+          const isPermissionError = result.statusCode === 403;
           if (isPermissionError) {
             getCurrentUser().then((me) => {
               if (me.data) {
@@ -102,7 +101,7 @@ export default function EventsClient() {
 
       if (result.error) {
         const message = String(result.error ?? "");
-        const isPermissionError = /permission/i.test(message) || message.includes("403");
+        const isPermissionError = result.statusCode === 403;
         if (isPermissionError) {
           const me = await getCurrentUser();
           if (me.data) {
