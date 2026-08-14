@@ -6,8 +6,6 @@ import { useRouter } from "next/navigation";
 import { TextField } from "./TextField";
 import { PasswordField } from "./PasswordField";
 import { AccountTypeSelect } from "./AccountTypeSelect";
-import { OrDivider } from "./OrDivider";
-import { GoogleButton } from "./GoogleButton";
 import { Mail, UserIcon } from "./icons";
 import { getAuthUser, login, saveAuthToken, saveAuthUser, signup, getCurrentUser } from "@/lib/api";
 
@@ -181,9 +179,6 @@ export function SignUpForm() {
         >
           {isSubmitting ? "Creating account…" : "Sign Up"}
         </button>
-
-        <OrDivider />
-        <GoogleButton />
 
         <p className="text-center text-sm text-slate-500">
           Already have an account?{" "}

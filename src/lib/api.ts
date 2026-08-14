@@ -341,6 +341,14 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<ApiR
           window.location.href = "/signin";
         }
       } else if (response.status === 403) {
+        const bodyMessage = typeof json === "object" && json !== null ? String((json as Record<string, unknown>).message ?? "") : "";
+        if (bodyMessage.toLowerCase().includes("verify your email")) {
+          clearAuth();
+          if (typeof window !== "undefined") {
+            window.location.href = "/signin?verify=1";
+          }
+          return { data: null, error: "Please verify your email before continuing." };
+        }
         if (process.env.NODE_ENV !== 'production') {
           console.log(`[auth] apiRequest 403 on ${path}`, { method: init.method, path, body: json });
         }
@@ -362,10 +370,17 @@ export async function refreshToken(): Promise<RefreshResult | null> {
     console.log('[auth] attempting token refresh');
   }
   try {
+    const currentToken = getAuthToken();
+    const refreshHeaders: Record<string, string> = { "Content-Type": "application/json" };
+    if (currentToken) {
+      refreshHeaders.Authorization = `Bearer ${currentToken}`;
+    }
+
     const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
       method: "POST",
       credentials: "include",
-      headers: { "Content-Type": "application/json" },
+      headers: refreshHeaders,
+      body: currentToken ? JSON.stringify({ token: currentToken }) : undefined,
     });
 
     if (!response.ok) {
@@ -416,8 +431,8 @@ export const GOOGLE_AUTH_URL =
   process.env.NEXT_PUBLIC_GOOGLE_AUTH_URL ??
   `${API_BASE_URL}/api/auth/google`;
 
-const USER_STORAGE_KEY = "eventconnect_user";
-const TOKEN_STORAGE_KEY = "eventconnect_token";
+export const USER_STORAGE_KEY = "eventconnect_user";
+export const TOKEN_STORAGE_KEY = "eventconnect_token";
 
 export function getAuthToken() {
   if (typeof window === "undefined") {
@@ -517,7 +532,7 @@ export function getAuthUser(): User | null {
       email: decoded.email ?? "",
       firstName: decoded.firstName ?? "",
       lastName: decoded.lastName ?? "",
-      role: decoded.role ?? "PLANNER",
+      role: decoded.role ?? "",
     } as User;
     if (process.env.NODE_ENV !== 'production') {
       console.log('[auth] getAuthUser from token', { role: user.role, email: user.email });
@@ -569,6 +584,13 @@ export async function signup(data: {
   return apiRequest<{ success: boolean; token?: string; message?: string; errors?: unknown; data?: User }>("/api/auth/signup", {
     method: "POST",
     body: JSON.stringify(data),
+  });
+}
+
+export async function resendVerification(email: string) {
+  return apiRequest<{ success: boolean; message?: string }>("/api/auth/resend-verification", {
+    method: "POST",
+    body: JSON.stringify({ email }),
   });
 }
 
@@ -635,7 +657,7 @@ export async function getVendors(token?: string) {
 }
 
 export async function getVendorAvailability(vendorId: string) {
-  const result = await apiRequest<{ data?: VendorAvailability } & VendorAvailability>(`/api/search/vendors/${encodeURIComponent(vendorId)}/availability`, { method: "GET", credentials: "omit" });
+  const result = await apiRequest<{ data?: VendorAvailability } & VendorAvailability>(`/api/search/vendors/${encodeURIComponent(vendorId)}/availability`, { method: "GET" });
   return { data: result.data?.data ?? result.data ?? null, error: result.error } as ApiResult<VendorAvailability>;
 }
 

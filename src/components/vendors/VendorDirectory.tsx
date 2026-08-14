@@ -83,8 +83,9 @@ export function VendorDirectory() {
       setBackendError("Please sign in as a planner before sending a booking request.");
       return;
     }
-    if (user.role.toUpperCase() !== "PLANNER") {
-      setBackendError("Only planner accounts can send booking requests.");
+    const role = user.role.toUpperCase();
+    if (role !== "PLANNER" && role !== "ADMIN") {
+      setBackendError("Only planner and admin accounts can send booking requests.");
       return;
     }
     setBookingNotice(null);

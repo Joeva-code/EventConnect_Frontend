@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 
 // Keep this value server-only. Set API_BASE_URL in Vercel for each environment.
-const BACKEND_URL = process.env.API_BASE_URL ?? "https://horizon-circle.onrender.com";
+const BACKEND_URL = process.env.API_BASE_URL ?? "http://localhost:5000";
 
 const REQUEST_HEADERS_TO_REMOVE = [
   "host",
@@ -30,6 +30,7 @@ async function proxy(request: NextRequest, context: RouteContext<"/api/backend/[
       body,
       redirect: "manual",
       cache: "no-store",
+      credentials: "include",
     });
 
     if (process.env.NODE_ENV !== 'production') {

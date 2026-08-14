@@ -9,7 +9,9 @@ export const metadata: Metadata = {
   description: signInContent.meta.description,
 };
 
-export default function SignInPage() {
+export default function SignInPage({ searchParams }: { searchParams: { verify?: string } }) {
+  const needsVerification = searchParams.verify === "1";
+
   return (
     <div className="flex min-h-screen flex-col bg-white">
       {/* Compact header: logo left, switch-to-signup right */}
@@ -42,6 +44,14 @@ export default function SignInPage() {
       {/* Centered login form with generous whitespace */}
       <main className="flex-1 flex items-center justify-center px-5 sm:px-6">
         <div className="w-full max-w-[440px] animate-fade-up py-12 sm:py-16">
+          {needsVerification ? (
+            <div className="mb-8 rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center">
+              <h2 className="text-lg font-semibold text-amber-900">Verify your email</h2>
+              <p className="mt-2 text-sm text-amber-700">
+                Please check your inbox and click the verification link before signing in. If you didn&apos;t receive it, you can request a new one after signing in.
+              </p>
+            </div>
+          ) : null}
           <div className="mb-8">
             <h1 className="text-3xl font-bold tracking-tight text-slate-950">
               {signInContent.heading}
