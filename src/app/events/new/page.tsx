@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createEvent } from "@/lib/api";
+import { createEvent, getAuthUser, getCurrentUser, saveAuthUser, clearAuth, getAuthToken, type User } from "@/lib/api";
 
 export default function NewEventPage() {
   const router = useRouter();
@@ -13,6 +13,41 @@ export default function NewEventPage() {
   const [eventDate, setEventDate] = useState("");
   const [location, setLocation] = useState("");
   const [guestCount, setGuestCount] = useState("");
+  const [user, setUser] = useState<User | null>(() => getAuthUser());
+
+  if (!user) {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-center text-sm text-rose-700">
+          You need to sign in to create an event.
+          <button
+            type="button"
+            onClick={() => router.push("/signin")}
+            className="mt-4 rounded-full bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-rose-700"
+          >
+            Go to sign in
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if ((user.role || "").toUpperCase() !== "PLANNER") {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center text-sm text-amber-700">
+          Only planners can create events.
+          <button
+            type="button"
+            onClick={() => router.push("/dashboard")}
+            className="mt-4 rounded-full bg-amber-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-amber-700"
+          >
+            Go to dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,16 +55,47 @@ export default function NewEventPage() {
     setIsSubmitting(true);
 
     try {
+      const token = getAuthToken();
       const result = await createEvent({
         name,
         eventType,
         eventDate: new Date(eventDate).toISOString(),
         location,
         guestCount: parseInt(guestCount, 10),
-      });
+      }, token ?? undefined);
 
       if (result.error) {
-        setError(result.error);
+        const message = String(result.error ?? "");
+        const isPermissionError = /permission/i.test(message) || message.includes("403");
+        if (isPermissionError) {
+          const me = await getCurrentUser();
+          if (me.data) {
+            const mergedUser = { ...(getAuthUser() ?? {} as User), ...me.data };
+            saveAuthUser(mergedUser);
+            setUser(mergedUser);
+            if ((mergedUser.role ?? "").toUpperCase() !== "PLANNER") {
+              router.replace("/dashboard");
+              return;
+            }
+            const retry = await createEvent({
+              name,
+              eventType,
+              eventDate: new Date(eventDate).toISOString(),
+              location,
+              guestCount: parseInt(guestCount, 10),
+            }, getAuthToken() ?? undefined);
+            if (retry.error) {
+              setError(retry.error);
+            } else if (retry.data) {
+              router.push(`/events/${retry.data.id}`);
+            }
+          } else {
+            clearAuth();
+            router.replace("/signin");
+          }
+        } else {
+          setError(result.error);
+        }
         setIsSubmitting(false);
       } else if (result.data) {
         router.push(`/events/${result.data.id}`);
@@ -49,7 +115,7 @@ export default function NewEventPage() {
 
       <form onSubmit={handleSubmit} className="mt-8 space-y-6">
         {error && (
-          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700" role="alert">
             {error}
           </div>
         )}
@@ -136,3 +202,4 @@ export default function NewEventPage() {
     </div>
   );
 }
+

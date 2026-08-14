@@ -5,6 +5,10 @@ import { pickImageForCategory } from "@/lib/images";
 
 const API_BASE_URL = "/api/backend";
 
+// Hard cap on how long any API request waits before failing fast with a clear
+// message instead of hanging the UI (e.g. on a slow or sleeping backend).
+const REQUEST_TIMEOUT_MS = 15000;
+
 export type ApiError = {
   message?: string;
   errors?: Array<{
@@ -59,7 +63,7 @@ export type BookingRequest = {
   specialNotes?: string;
 };
 
-export type EnquiryStatus = "NEW" | "PENDING" | "RESPONDED" | "ACCEPTED" | "DECLINED" | "BOOKED" | string;
+export type EnquiryStatus = "NEW" | "RESPONDED" | "DECLINED" | "BOOKED" | string;
 
 export type Enquiry = {
   id: string;
@@ -225,11 +229,12 @@ export type AttendanceData = {
 };
 
 async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<ApiResult<T>> {
-  // Default to sending credentials (cookies) so deployments using HttpOnly cookies work.
-  // Allow callers to override via `init.credentials`.
   const headers = (init.body instanceof FormData)
     ? (init.headers ?? {})
     : ({ "Content-Type": "application/json", ...(init.headers ?? {}) });
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   let response: Response;
   try {
@@ -237,8 +242,17 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<ApiR
       ...init,
       headers,
       credentials: (init.credentials ?? "include"),
+      signal: init.signal ?? controller.signal,
     });
-  } catch {
+    clearTimeout(timeout);
+  } catch (err) {
+    clearTimeout(timeout);
+    if (controller.signal.aborted) {
+      return {
+        data: null,
+        error: "The request took too long. Please check your connection and try again.",
+      };
+    }
     return {
       data: null,
       error: "Unable to reach the server. Please try again in a moment.",
@@ -281,7 +295,46 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<ApiR
 
       if (response.status === 401) {
         if (process.env.NODE_ENV !== 'production') {
-          console.log(`[auth] apiRequest 401 on ${path}`, { method: init.method, path });
+          console.log(`[auth] apiRequest 401 on ${path} — attempting token refresh`, { method: init.method, path });
+        }
+        const refreshed = await refreshToken();
+        if (refreshed) {
+          if (process.env.NODE_ENV !== 'production') {
+            console.log(`[auth] token refreshed, retrying ${path}`);
+          }
+          const retryHeaders = (init.body instanceof FormData)
+            ? (init.headers ?? {})
+            : ({ "Content-Type": "application/json", ...(init.headers ?? {}) });
+          const retryAuth = getAuthHeaders();
+          if (retryAuth.Authorization) Object.assign(retryHeaders, retryAuth);
+          const retryResponse = await fetch(`${API_BASE_URL}${path}`, {
+            ...init,
+            headers: retryHeaders,
+            credentials: (init.credentials ?? "include"),
+            signal: init.signal ?? (init.body instanceof FormData ? undefined : new AbortController().signal),
+          });
+          const retryText = await retryResponse.text();
+          let retryJson: unknown = null;
+          try {
+            retryJson = retryText ? JSON.parse(retryText) : null;
+          } catch {
+            retryJson = null;
+          }
+          if (retryResponse.ok) {
+            return { data: retryJson as T, error: null };
+          }
+          let retryMessage = retryResponse.statusText || "Request failed after refresh";
+          if (typeof retryJson === "object" && retryJson !== null) {
+            const body = retryJson as Record<string, unknown>;
+            if (body.message) retryMessage = String(body.message);
+          }
+          if (retryResponse.status === 401) {
+            clearAuth();
+            if (typeof window !== "undefined") {
+              window.location.href = "/signin";
+            }
+          }
+          return { data: null, error: retryMessage };
         }
         clearAuth();
         if (typeof window !== "undefined") {
@@ -289,7 +342,7 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<ApiR
         }
       } else if (response.status === 403) {
         if (process.env.NODE_ENV !== 'production') {
-          console.log(`[auth] apiRequest 403 on ${path}`, { method: init.method, path });
+          console.log(`[auth] apiRequest 403 on ${path}`, { method: init.method, path, body: json });
         }
       }
 
@@ -297,6 +350,66 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<ApiR
     }
 
   return { data: json as T, error: null };
+}
+
+export interface RefreshResult {
+  token: string;
+  user: User;
+}
+
+export async function refreshToken(): Promise<RefreshResult | null> {
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[auth] attempting token refresh');
+  }
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    if (!response.ok) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[auth] token refresh failed', { status: response.status });
+      }
+      return null;
+    }
+
+    const text = await response.text();
+    const body = text ? JSON.parse(text) : null;
+    const data = body?.data ?? body;
+    const token = body?.token ?? data?.token;
+    const refreshedUser = body?.user ?? data?.user ?? body?.user ?? data?.data?.user;
+
+    if (token) {
+      saveAuthToken(token, true);
+      let freshUser = getAuthUser();
+      if (refreshedUser) {
+        freshUser = refreshedUser as User;
+        saveAuthUser(freshUser, true);
+      } else {
+        const me = await apiRequest<User>("/api/auth/me", { method: "GET", headers: { Authorization: `Bearer ${token}` } });
+        if (!me.error && me.data) {
+          freshUser = me.data;
+          saveAuthUser(freshUser, true);
+        }
+      }
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[auth] token refresh successful', { role: freshUser?.role });
+      }
+      return { token, user: freshUser as User };
+    }
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[auth] token refresh response missing token', { bodyKeys: Object.keys(body || {}) });
+    }
+    return null;
+  } catch (err) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[auth] token refresh error', { error: String((err as Error)?.message ?? err) });
+    }
+    return null;
+  }
 }
 
 export const GOOGLE_AUTH_URL =
@@ -469,14 +582,14 @@ export async function getVendors(token?: string) {
       const lastName = String(user?.lastName ?? item.lastName ?? "");
       const accountName = [firstName, lastName].filter(Boolean).join(" ");
       return {
-        id: String(item.userId ?? item.id ?? user?.id ?? ""),
+        id: String(user?.id ?? item.userId ?? item.id ?? ""),
         name: String(accountName || item.name || item.businessName || profile?.businessName || "Registered vendor"),
         category: String(item.category ?? profile?.category ?? "Event services"),
         location: String(item.location ?? profile?.location ?? "Location on request"),
         rating: Number(item.averageRating ?? profile?.averageRating ?? item.rating ?? 0),
         reviews: Number(item.totalReviews ?? profile?.totalReviews ?? item.reviews ?? 0),
         startingPrice: String(item.priceRange ?? profile?.priceRange ?? item.startingPrice ?? "Contact for pricing"),
-        image: String(item.profileImage ?? profile?.profileImage ?? item.avatar ?? user?.avatar ?? item.image ?? pickImageForCategory(String(item.category ?? profile?.category ?? ""), String(item.userId ?? item.id ?? user?.id ?? ""))),
+        image: String(item.profileImage ?? profile?.profileImage ?? item.avatar ?? user?.avatar ?? item.image ?? pickImageForCategory(String(item.category ?? profile?.category ?? ""), String(user?.id ?? item.userId ?? item.id ?? ""))),
         description: String(item.description ?? profile?.description ?? ""),
         isPublished: Boolean(item.isPublished ?? profile?.isPublished ?? false),
         portfolioItems: (Array.isArray(item.portfolioItems) ? item.portfolioItems : []).map((pi: Record<string, unknown>) => ({
@@ -500,21 +613,25 @@ export async function getVendors(token?: string) {
     return [];
   };
 
-  // `/api/vendor` is the registered-vendor collection. Keep the searchable
-  // profile endpoint as a compatibility fallback for older backend deployments.
+  // Use the public search endpoint first since it works for all roles
+  // (planners browsing vendors, guests discovering services). The authenticated
+  // `/api/vendor` endpoint is VENDOR-only and would return 403 for planners.
   const headers = getAuthHeaders(token);
+  const search = await apiRequest<unknown>("/api/search/vendors", {
+    method: "GET",
+    headers,
+  });
+  if (!search.error) {
+    return { data: unwrap(search.data), error: null } as ApiResult<Vendor[]>;
+  }
+
+  // Fallback for vendor-specific registered vendor data
   const registered = await apiRequest<unknown>("/api/vendor", { method: "GET", headers });
   if (!registered.error) {
     return { data: unwrap(registered.data), error: null } as ApiResult<Vendor[]>;
   }
 
-  const search = await apiRequest<unknown>("/api/search/vendors", {
-    method: "GET",
-    headers,
-  });
-  if (search.error) return { data: null, error: registered.error } as ApiResult<Vendor[]>;
-
-  return { data: unwrap(search.data), error: null } as ApiResult<Vendor[]>;
+  return { data: null, error: search.error } as ApiResult<Vendor[]>;
 }
 
 export async function getVendorAvailability(vendorId: string) {
@@ -615,63 +732,20 @@ export function getAuthHeaders(token?: string): Record<string, string> {
 }
 
 export async function updateProfile(data: Partial<User>, token?: string) {
+  const user = getAuthUser();
+  const role = (user?.role ?? "").toUpperCase();
+  const path = role === "VENDOR" ? "/api/vendor/profile" : "/api/planner/profile";
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
   const auth = getAuthHeaders(token);
   if (auth.Authorization) headers.Authorization = auth.Authorization;
 
-  const candidatePaths = [
-    "/api/v1/profile",
-    "/api/v1/users",
-    "/api/v1/user",
-    "/api/user",
-    "/api/profile",
-    "/api/auth/user",
-    "/api/auth/profile",
-    "/api/auth/me",
-    "/api/me",
-    "/api/user/me",
-    "/api/profile/me",
-    "/api/vendor",
-    "/api/vendor/me",
-    "/api/vendor/profile",
-  ];
-  const candidateMethods = ["PUT", "PATCH", "POST"];
-
-  let lastErr = "";
-
-  for (const path of candidatePaths) {
-    for (const method of candidateMethods) {
-      const result = await apiRequest<User>(path, {
-        method,
-        headers,
-        body: JSON.stringify(data),
-      });
-
-      if (!result.error) {
-        return result;
-      }
-
-      const lowerError = result.error.toLowerCase();
-      if (
-        lowerError.includes("route") ||
-        lowerError.includes("not found") ||
-        lowerError.includes("unsupported") ||
-        lowerError.includes("cannot")
-      ) {
-        lastErr = `${method} ${path} -> ${result.error}`;
-        continue;
-      }
-
-      return result;
-    }
-  }
-
-  return {
-    data: null,
-    error: `Profile update route not found. Tried paths: ${candidatePaths.join(", ")}; methods: ${candidateMethods.join(", ")}. Last error: ${lastErr}`,
-  };
+  return apiRequest<User>(path, {
+    method: "PUT",
+    headers,
+    body: JSON.stringify(data),
+  });
 }
 
 export async function uploadProfileImage(file: File, token?: string): Promise<ApiResult<{ avatar: string }>> {
@@ -695,25 +769,17 @@ export async function getCurrentUser(token?: string) {
   const t = token ?? getAuthToken();
   if (t) headers.Authorization = `Bearer ${t}`;
 
-  const candidatePaths = [
-    "/api/auth/me",
-    "/api/me",
-    "/api/user/me",
-    "/api/user",
-    "/api/auth/user",
-    "/api/profile",
-    "/api/v1/me",
-    "/api/v1/user",
-  ];
+  const result = await apiRequest<User>("/api/auth/me", {
+    method: "GET",
+    headers,
+    credentials: "include",
+  });
 
-  for (const p of candidatePaths) {
-    const res = await apiRequest<User>(p, { method: "GET", headers });
-    if (!res.error && res.data) {
-      return res;
-    }
+  if (!result.error && result.data) {
+    return result;
   }
 
-  return { data: null, error: "Could not fetch current user" } as ApiResult<User>;
+  return { data: null, error: result.error ?? "Could not fetch current user" } as ApiResult<User>;
 }
 
 export async function getVendorPortfolio(vendorId: string, token?: string) {
@@ -729,10 +795,10 @@ export async function getVendorPortfolio(vendorId: string, token?: string) {
 
 export async function createPortfolioItem(formData: FormData, token?: string) {
   const headers: Record<string, string> = {};
-  const t = token ?? getAuthToken();
-  if (t) headers.Authorization = `Bearer ${t}`;
+  const auth = getAuthHeaders(token);
+  if (auth.Authorization) headers.Authorization = auth.Authorization;
 
-  const result = await apiRequest<{ success: boolean; data: { id: string; mediaType: string; url: string; thumbnailUrl?: string; caption?: string; priceRange?: string; sortOrder: number } }>("/api/portfolio", {
+  const result = await apiRequest<{ success: boolean; data: { id: string; mediaType: string; url: string; thumbnailUrl?: string; caption?: string; priceRange?: string; sortOrder: number } }>("/api/vendor/portfolio", {
     method: "POST",
     headers,
     body: formData,
@@ -746,7 +812,7 @@ export async function updatePortfolioItem(id: string, data: { caption?: string; 
   const t = token ?? getAuthToken();
   if (t) headers.Authorization = `Bearer ${t}`;
 
-  const result = await apiRequest<{ success: boolean; data: { id: string; caption?: string; priceRange?: string; sortOrder?: number } }>(`/api/portfolio/${id}`, {
+  const result = await apiRequest<{ success: boolean; data: { id: string; caption?: string; priceRange?: string; sortOrder?: number } }>(`/api/vendor/portfolio/${encodeURIComponent(id)}`, {
     method: "PUT",
     headers: { ...headers, "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -759,7 +825,7 @@ export async function deletePortfolioItem(id: string, token?: string) {
   const t = token ?? getAuthToken();
   if (t) headers.Authorization = `Bearer ${t}`;
 
-  const result = await apiRequest<{ success: boolean; message?: string }>(`/api/portfolio/${id}`, {
+  const result = await apiRequest<{ success: boolean; message?: string }>(`/api/vendor/portfolio/${encodeURIComponent(id)}`, {
     method: "DELETE",
     headers,
   });

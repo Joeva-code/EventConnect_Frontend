@@ -7,6 +7,22 @@ import { getAuthToken, getAuthUser, getVendors } from "@/lib/api";
 import { VendorCard } from "./VendorCard";
 import { BookingModal } from "./BookingModal";
 
+type BackendVendor = {
+  id: string;
+  userId?: string;
+  businessName?: string;
+  category?: string;
+  location?: string;
+  averageRating?: number;
+  totalReviews?: number;
+  priceRange?: string;
+  profileImage?: string;
+  description?: string;
+  isPublished?: boolean;
+  portfolioItems?: Array<{ id: string; mediaType: string; url: string; thumbnailUrl?: string; caption?: string; priceRange?: string; sortOrder: number }>;
+  user?: { id?: string; firstName?: string; lastName?: string; email?: string; avatar?: string };
+};
+
 type Filter = "All" | Category;
 
 export function VendorDirectory() {
@@ -15,7 +31,7 @@ export function VendorDirectory() {
   const [vendorList, setVendorList] = useState<StaticVendor[]>([]);
   const [backendError, setBackendError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [bookingVendor, setBookingVendor] = useState<StaticVendor | null>(null);
+  const [bookingVendor, setBookingVendor] = useState<StaticVendor & { userId?: string } | null>(null);
   const [bookingNotice, setBookingNotice] = useState<string | null>(null);
 
   useEffect(() => {
@@ -24,8 +40,22 @@ export function VendorDirectory() {
       if (result.error) {
         setBackendError(result.error);
         setVendorList([]);
-      } else if (result.data) {
-        setVendorList(result.data as StaticVendor[]);
+      } else if (result.data && Array.isArray(result.data)) {
+        const mapped = (result.data as BackendVendor[]).map((v) => ({
+          id: v.id,
+          userId: v.user?.id ?? v.userId ?? v.id,
+          name: v.businessName || [v.user?.firstName, v.user?.lastName].filter(Boolean).join(" ") || "Vendor",
+          category: v.category,
+          location: v.location || "",
+          rating: v.averageRating ?? 0,
+          reviews: v.totalReviews ?? 0,
+          startingPrice: v.priceRange || "Contact for pricing",
+          image: v.profileImage || v.user?.avatar || "",
+          description: v.description || "",
+          isPublished: v.isPublished ?? false,
+          portfolioItems: Array.isArray(v.portfolioItems) ? v.portfolioItems : [],
+        }));
+        setVendorList(mapped as StaticVendor[]);
       } else {
         setVendorList([]);
       }
@@ -128,6 +158,7 @@ export function VendorDirectory() {
       {bookingVendor ? (
         <BookingModal
           vendor={bookingVendor}
+          vendorId={bookingVendor.userId ?? bookingVendor.id}
           onClose={() => setBookingVendor(null)}
           onBooked={(vendorName) => setBookingNotice(`Booking request sent to ${vendorName}. The vendor can now review it in their dashboard.`)}
         />

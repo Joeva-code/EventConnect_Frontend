@@ -23,7 +23,7 @@ export function PasswordField({
   return (
     <div>
       <div className="relative">
-        <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-slate-400">
+        <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
           <Lock className="h-4.5 w-4.5" />
         </span>
         <input
@@ -33,19 +33,19 @@ export function PasswordField({
           required
           autoComplete={autoComplete}
           placeholder=" "
-          className="peer w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-10 text-slate-900 placeholder:text-transparent focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/10"
+          className="peer w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-12 text-slate-900 placeholder:text-transparent focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/10"
           {...props}
         />
         <label
           htmlFor={id}
-          className="absolute left-4 top-3 text-xs text-slate-400 transition-all peer-placeholder-shown:top-3 peer-placeholder-shown:text-base peer-focus:top-1 peer-focus:text-xs"
+          className="absolute left-4 top-1 text-xs text-slate-400 transition-all peer-placeholder-shown:top-3 peer-placeholder-shown:text-base peer-focus:top-1 peer-focus:text-xs peer-placeholder-shown:left-12 peer-focus:left-12"
         >
           {label}
         </label>
         <button
           type="button"
           onClick={() => setVisible((v) => !v)}
-          className="absolute inset-y-0 right-3.5 flex items-center text-slate-400 hover:text-slate-600"
+          className="absolute inset-y-0 right-4 flex items-center text-slate-400 hover:text-slate-600"
           aria-label={visible ? "Hide password" : "Show password"}
         >
           {visible ? (

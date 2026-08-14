@@ -7,11 +7,12 @@ import Image from "next/image";
 
 type BookingModalProps = {
   vendor: Vendor;
+  vendorId: string;
   onClose: () => void;
   onBooked: (vendorName: string) => void;
 };
 
-export function BookingModal({ vendor, onClose, onBooked }: BookingModalProps) {
+export function BookingModal({ vendor, vendorId, onClose, onBooked }: BookingModalProps) {
   const [eventType, setEventType] = useState("");
   const [eventDate, setEventDate] = useState("");
   const [guestCount, setGuestCount] = useState("");
@@ -54,7 +55,7 @@ export function BookingModal({ vendor, onClose, onBooked }: BookingModalProps) {
     setIsSubmitting(true);
     const result = await createBooking(
       {
-        vendorId: vendor.id,
+        vendorId,
         eventType,
         eventDate,
         guestCount: guests,
