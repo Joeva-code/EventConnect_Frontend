@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { NotificationBell, enquiriesToNotifications } from "@/components/dashboard/NotificationBell";
 import { clearAuth, getAuthToken, getAuthUser, getCurrentUser, getEnquiries, getEvents, getMyAvailability, getMyVendorProfile, getVendors, saveAuthUser, type Enquiry, type Event, type User, updateEnquiryStatus, updateMyAvailability, updateMyVendorProfile, updateProfile, uploadProfileImage, createPortfolioItem, deletePortfolioItem, getMaxifyIntegrationInfo, getTicketStats, getAttendanceData, getEventAnalytics, getGuestStats, syncMaxifyEvent, connectMaxifyEvent, type TicketStats, type AttendanceData, type EventAnalytics, type GuestStats, type MaxifyIntegrationInfo } from "@/lib/api";
 import { Footer } from "@/components/landing/Footer";
 import { Header } from "@/components/landing/Header";
@@ -14,10 +15,13 @@ import Image from "next/image";
 import { EnquiryChat } from "@/components/enquiries/EnquiryChat";
 import { FALLBACK_AVATAR_IMAGE } from "@/lib/images";
 import { Logo } from "@/components/branding/Logo";
+import { formatDate, formatDateWithTime } from "@/lib/formatDate";
+import { VendorSidebar, VendorMobileHeader } from "@/app/_vendor/VendorSidebar";
 
 type PlannerSection =
   | "Dashboard"
   | "My Events"
+  | "Bookings"
   | "MaxifyTickets"
   | "Discover Vendors"
   | "Messages"
@@ -29,6 +33,7 @@ type PlannerNavItem = { id: PlannerSection; label: string; icon?: React.ReactNod
 const plannerNavItems: PlannerNavItem[] = [
   { id: "Dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" /> },
   { id: "My Events", label: "My Events", icon: <Calendar className="h-4 w-4" /> },
+  { id: "Bookings", label: "Bookings", icon: <Check className="h-4 w-4" /> },
   { id: "MaxifyTickets", label: "MaxifyTickets", icon: <Ticket className="h-4 w-4" />, image: (
     <Image
       src="/image.png"
@@ -49,6 +54,7 @@ const plannerNavItems: PlannerNavItem[] = [
 // (e.g. /dashboard#discover-vendors) actually open the right section.
 const plannerSectionFromHash: Record<string, PlannerSection> = {
   dashboard: "Dashboard",
+  bookings: "Bookings",
   "maxify-tickets": "MaxifyTickets",
   "discover-vendors": "Discover Vendors",
   messages: "Messages",
@@ -59,6 +65,7 @@ const plannerSectionFromHash: Record<string, PlannerSection> = {
 const plannerHashForSection: Record<PlannerSection, string> = {
   Dashboard: "dashboard",
   "My Events": "",
+  Bookings: "bookings",
   MaxifyTickets: "maxify-tickets",
   "Discover Vendors": "discover-vendors",
   Messages: "messages",
@@ -68,7 +75,6 @@ const plannerHashForSection: Record<PlannerSection, string> = {
 
 type VendorSection =
   | "Dashboard"
-  | "Notifications"
   | "Bookings"
   | "Messages"
   | "Availability"
@@ -77,7 +83,6 @@ type VendorSection =
 
 const vendorNavItems: VendorSection[] = [
   "Dashboard",
-  "Notifications",
   "Bookings",
   "Messages",
   "Availability",
@@ -139,9 +144,25 @@ export default function DashboardClient() {
   const [events, setEvents] = useState<Event[]>([]);
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
   const [eventsError, setEventsError] = useState<string | null>(null);
+  const [plannerBookings, setPlannerBookings] = useState<Enquiry[]>([]);
+  const [isLoadingPlannerBookings, setIsLoadingPlannerBookings] = useState(false);
+  const [plannerBookingsError, setPlannerBookingsError] = useState<string | null>(null);
   const [chatEnquiry, setChatEnquiry] = useState<Enquiry | null>(null);
   const [readChatIds, setReadChatIds] = useState<Set<string>>(new Set());
   const [maxifySubPage, setMaxifySubPage] = useState<string>("Overview");
+
+  const searchParams = useSearchParams();
+
+  // Sync vendor section from URL query param on mount and navigation.
+  // This is an intentional URL-to-state synchronization pattern.
+  /* eslint-disable react-hooks/set-state-in-effect -- URL-to-state sync is intentional */
+  useEffect(() => {
+    const vendorSection = searchParams.get("vendor");
+    if (vendorSection && ["Dashboard", "Bookings", "Messages", "Availability", "Profile", "Portfolio"].includes(vendorSection)) {
+      setActiveVendorSection(vendorSection as VendorSection);
+    }
+  }, [searchParams]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   function openChat(enquiry: Enquiry) {
     setReadChatIds((current) => {
@@ -189,6 +210,38 @@ export default function DashboardClient() {
     if (result.error) setEnquiryError(result.error);
     else setEnquiries(enquiryList(result.data));
     setIsLoadingEnquiries(false);
+  }
+
+  async function reviewEnquiry(id: string, status: "ACCEPTED" | "DECLINED") {
+    const result = await updateEnquiryStatus(id, status, getAuthToken() ?? undefined, "");
+    if (result.error) {
+      setEnquiryError(result.error);
+      return;
+    }
+    const updated = result.data?.data;
+    setEnquiries((current) =>
+      current.map((enquiry) =>
+        enquiry.id === id
+          ? {
+              ...enquiry,
+              ...(updated ?? {}),
+              status: updated?.status ?? (status === "ACCEPTED" ? "BOOKED" : "DECLINED"),
+            }
+          : enquiry
+      )
+    );
+  }
+
+  async function loadPlannerBookings() {
+    setIsLoadingPlannerBookings(true);
+    setPlannerBookingsError(null);
+    const result = await getEnquiries(getAuthToken() ?? undefined);
+    if (result.error) {
+      setPlannerBookingsError(result.error);
+    } else {
+      setPlannerBookings(enquiryList(result.data));
+    }
+    setIsLoadingPlannerBookings(false);
   }
 
   async function loadEvents() {
@@ -346,6 +399,7 @@ export default function DashboardClient() {
       if (role === "PLANNER") {
         void loadEvents();
         void loadVendors();
+        void loadPlannerBookings();
       }
       if (role === "VENDOR") {
         void loadVendors();
@@ -406,20 +460,6 @@ export default function DashboardClient() {
     }
   }
 
-  async function reviewEnquiry(id: string, status: "ACCEPTED" | "DECLINED") {
-    const result = await updateEnquiryStatus(id, status, getAuthToken() ?? undefined);
-    if (result.error) {
-      setEnquiryError(result.error);
-      return;
-    }
-    const updated = result.data?.data;
-    setEnquiries((current) => current.map((enquiry) => enquiry.id === id ? {
-      ...enquiry,
-      ...(updated ?? {}),
-      status: updated?.status ?? (status === "ACCEPTED" ? "BOOKED" : "DECLINED"),
-    } : enquiry));
-  }
-
   useEffect(() => {
     if (!selectedFile) {
       setPreviewUrl(null);
@@ -477,6 +517,88 @@ export default function DashboardClient() {
     } finally {
       setIsSaving(false);
     }
+   }
+
+  async function saveVendorProfile() {
+    setIsSaving(true);
+    setSaveError(null);
+    setVendorProfileSaved(false);
+    const result = await updateMyVendorProfile(vendorProfileForm, getAuthToken() ?? undefined);
+    setIsSaving(false);
+    if (result.error) {
+      setSaveError(result.error);
+    } else {
+      setVendorProfileSaved(true);
+      setTimeout(() => setVendorProfileSaved(false), 3000);
+    }
+  }
+
+  async function handleAddPortfolioItem() {
+    setPortfolioError(null);
+    if (!portfolioForm.title.trim() || !portfolioImageFile) {
+      setPortfolioError("Please provide a title and upload a photo or video.");
+      return;
+    }
+
+    setIsSavingPortfolio(true);
+    const formData = new FormData();
+    formData.append("media", portfolioImageFile);
+    formData.append("caption", portfolioForm.title);
+    formData.append("priceRange", portfolioForm.priceRange);
+    formData.append("mediaType", portfolioForm.mediaType);
+    if (portfolioForm.description.trim()) {
+      formData.append("description", portfolioForm.description);
+    }
+
+    const result = await createPortfolioItem(formData, getAuthToken() ?? undefined);
+    setIsSavingPortfolio(false);
+    if (result.error) {
+      setPortfolioError(result.error);
+    } else {
+      await loadPortfolio();
+      setPortfolioForm({ title: "", description: "", priceRange: "", mediaType: "IMAGE" });
+      setPortfolioImageFile(null);
+      setPortfolioImagePreview(null);
+      setShowPortfolioForm(false);
+    }
+  }
+
+  async function handleDeletePortfolioItem(id: string) {
+    const confirmed = window.confirm("Delete this portfolio item? This action cannot be undone.");
+    if (!confirmed) return;
+    const result = await deletePortfolioItem(id, getAuthToken() ?? undefined);
+    if (result.error) {
+      setPortfolioError(result.error);
+    } else {
+      await loadPortfolio();
+    }
+  }
+
+  function exportVendorSchedule() {
+    const rows = [
+      ["Event Type", "Event Date", "Location", "Budget", "Status", "Planner Name", "Planner Email", "Created At"],
+      ...vendorBookings.map((booking) => [
+        booking.eventType,
+        formatDate(booking.eventDate),
+        booking.eventLocation,
+        booking.budget || "Not specified",
+        booking.status,
+        contactName(booking, "PLANNER"),
+        booking.planner?.email || "—",
+        booking.createdAt ? formatDate(booking.createdAt) : "—",
+      ]),
+    ];
+
+    const csvContent = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `vendor-bookings-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   }
 
   if (isLoading) {
@@ -502,6 +624,7 @@ export default function DashboardClient() {
   const role = user.role?.toUpperCase?.() ?? "";
   const isPlanner = role === "PLANNER";
   const isVendor = role === "VENDOR";
+
   const greetingName = user.firstName || user.email.split("@")[0];
   const hour = new Date().getHours();
   const greetingTime = hour >= 5 && hour < 12 ? "morning" : hour >= 12 && hour < 18 ? "afternoon" : "evening";
@@ -524,10 +647,20 @@ export default function DashboardClient() {
   const vendorEnquiries = currentEnquiries;
   const plannerEnquiriesForUser = currentEnquiries;
   const vendorBookings = acceptedEnquiries;
+  const vendorNotifications = enquiriesToNotifications(currentEnquiries, {
+    onSelect: (enquiry) => {
+      if (enquiry.chatRoom?.id) {
+        openChat(enquiry);
+      } else {
+        setActiveVendorSection("Bookings");
+      }
+    },
+  });
+  const unreadNotificationCount = vendorNotifications.filter((n) => n.unread).length;
   const plannerNotifications = currentEnquiries.slice(0, 5).map((enquiry) => ({
     headline: `${enquiry.status} — ${contactName(enquiry, "PLANNER")}`,
-    detail: `${enquiry.eventType} on ${enquiry.eventDate}`,
-    time: enquiry.createdAt ? new Date(enquiry.createdAt).toLocaleDateString() : "Recent",
+    detail: `${enquiry.eventType} on ${formatDate(enquiry.eventDate)}`,
+    time: formatDate(enquiry.createdAt),
   }));
 
   if (isVendor) {
@@ -536,91 +669,103 @@ export default function DashboardClient() {
     return (
       <div className="flex min-h-screen flex-col bg-slate-100">
         <main className="flex-1 px-4 py-8 sm:px-6 lg:px-10">
-          <div className="mx-auto grid max-w-[1700px] gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
-            <aside className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="mb-6 rounded-[28px] bg-slate-50 p-5">
-                <div className="flex items-center gap-3">
-                  {user.avatar ? (
-                     <Image
-                       src={user.avatar}
-                       alt={`${vendorName} profile`}
-                       width={48}
-                       height={48}
-                       className="rounded-full object-cover"
-                       onError={(e) => {
-                         const target = e.currentTarget;
-                         target.onerror = null;
-                         target.src = FALLBACK_AVATAR_IMAGE;
-                       }}
-                     />
-                    ) : (
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white shadow-sm">
-                      {(() => {
-                        const initials = [user.firstName, user.lastName]
-                          .filter(Boolean)
-                          .map((name) => name?.[0].toUpperCase())
-                          .join("");
-                        return initials || "V";
-                      })()}
-                    </div>
-                  )}
-                  <div>
-                    <p className="text-sm font-semibold text-slate-950">{user.firstName} {user.lastName}</p>
-                    <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Vendor</p>
-                  </div>
-                </div>
-              </div>
-
-              <nav className="space-y-1">
-                {vendorNavItems.map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    onClick={() => setActiveVendorSection(item)}
-                    className={`w-full rounded-3xl px-4 py-3 text-left text-sm font-semibold transition ${
-                      activeVendorSection === item
-                        ? "bg-blue-600 text-white shadow"
-                        : "text-slate-700 hover:bg-slate-100"
-                    }`}
-                  >
-                    {item}
-                  </button>
-                ))}
-              </nav>
-
-              <div className="mt-10 rounded-[28px] bg-slate-50 p-5">
-                <p className="text-sm font-semibold text-slate-900">Need support?</p>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Our vendor success team can help with enquiries, payments, and profile updates.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  clearAuth();
-                  router.replace("/");
-                }}
-                className="mt-6 flex w-full items-center gap-3 rounded-3xl border border-rose-200 bg-white px-4 py-3 text-left text-sm font-semibold text-rose-700 transition hover:bg-rose-50"
-              >
-                <LogOut className="h-4 w-4 text-rose-500" />
-                Log out
-              </button>
-            </aside>
-
+          <div className="mx-auto grid max-w-[1700px] gap-6 xl:grid-cols-[280px_1fr]">
+            <VendorMobileHeader onMenuClick={() => setSidebarOpen((open) => !open)} />
+            <VendorSidebar
+              activeSection={activeVendorSection}
+              onSectionChange={setActiveVendorSection}
+              open={sidebarOpen}
+              onOpenChange={setSidebarOpen}
+              onClose={() => setSidebarOpen(false)}
+              onLogout={() => {
+                clearAuth();
+                router.replace("/");
+              }}
+            />
             <section className="space-y-6">
-              <header className="rounded-[32px] bg-white p-6 shadow-sm">
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Welcome back, {vendorName} 👋</p>
-                  <div className="flex items-center gap-4">
-                     <h1 className="mt-3 text-2xl font-semibold text-slate-950 sm:text-3xl">{activeVendorSection}</h1>
+              {activeVendorSection === "Dashboard" ? (
+                <>
+                  {/* Top bar */}
+                  <div className="rounded-[32px] bg-white p-4 shadow-sm">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3 flex-1">
+                        <Search className="h-5 w-5 text-slate-400" />
+                        <input
+                          type="search"
+                          placeholder="Search events, bookings, enquiries..."
+                          className="w-full bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setActiveVendorSection("Messages")}
+                          className="rounded-full border border-slate-200 bg-slate-50 p-2.5 text-slate-700 transition hover:bg-slate-100"
+                          aria-label="Messages"
+                        >
+                          <Message className="h-5 w-5" />
+                        </button>
+                        <NotificationBell
+                          notifications={vendorNotifications}
+                          unreadCount={unreadNotificationCount}
+                          label="Notifications"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setActiveVendorSection("Profile")}
+                          className="flex items-center gap-3 rounded-full border border-slate-200 bg-slate-50 pl-1 pr-3 py-1 transition hover:bg-slate-100"
+                          aria-label="Profile"
+                        >
+                          {user.avatar ? (
+                            <Image
+                              src={user.avatar}
+                              alt={vendorName}
+                              width={36}
+                              height={36}
+                              className="h-9 w-9 rounded-full object-cover"
+                              onError={(e) => {
+                                const target = e.currentTarget;
+                                target.onerror = null;
+                                target.src = FALLBACK_AVATAR_IMAGE;
+                              }}
+                            />
+                          ) : (
+                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">
+                              {vendorName.slice(0, 2).toUpperCase()}
+                            </div>
+                          )}
+                          <span className="hidden sm:block text-sm font-semibold text-slate-700">
+                            {vendorName}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </header>
+
+                  {/* Welcome */}
+                  <div className="rounded-[32px] bg-white p-6 shadow-sm">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-slate-500">Welcome back, {vendorName} 👋</p>
+                        <h1 className="mt-2 text-2xl font-semibold text-slate-950 sm:text-3xl">{activeVendorSection}</h1>
+                      </div>
+                    </div>
+                  </div>
+
+                  {enquiryError ? (
+                    <div role="alert" className="rounded-[28px] border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+                      {enquiryError}
+                      <button type="button" onClick={loadEnquiries} className="ml-3 rounded-full border border-rose-200 bg-white px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100">
+                        Retry
+                      </button>
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
 
               {activeVendorSection === "Dashboard" ? (
                 <>
-                  {pendingEnquiries.length > 0 ? <div role="status" className="rounded-[28px] border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900"><span className="font-semibold">New booking request{pendingEnquiries.length === 1 ? "" : "s"} received.</span> Review {pendingEnquiries.length === 1 ? "it" : "them"} in Notifications.</div> : null}
+                  {pendingEnquiries.length > 0 ? <div role="status" className="rounded-[28px] border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900"><span className="font-semibold">New booking request{pendingEnquiries.length === 1 ? "" : "s"} received.</span></div> : null}
                   <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
                     {vendorStatus.map((card) => (
                       <div key={card.title} className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
@@ -639,10 +784,7 @@ export default function DashboardClient() {
                         <div>
                            <p className="text-sm font-semibold text-slate-500">Latest notifications</p>
                            <h2 className="mt-1 text-2xl font-semibold text-slate-950">Recent planner enquiries</h2>
-                         </div>
-                         <button type="button" onClick={() => setActiveVendorSection("Notifications")} className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
-                           View all
-                         </button>
+                        </div>
                       </div>
 
                       <div className="mt-6 space-y-4">
@@ -651,13 +793,19 @@ export default function DashboardClient() {
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                               <div>
                                 <p className="text-sm font-semibold text-slate-950">{contactName(enquiry, "VENDOR")}</p>
-                                <p className="text-sm text-slate-600">{enquiry.eventType} · {enquiry.eventDate}</p>
+                                 <p className="text-sm text-slate-600">{enquiry.eventType} · {formatDate(enquiry.eventDate)}</p>
                               </div>
                               <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
                                 <span>{enquiry.budget || "Budget not specified"}</span>
-                                <span className="rounded-full bg-white px-3 py-1 text-slate-700 shadow-sm">
+                                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${enquiry.status === "NEW" ? "bg-amber-100 text-amber-700" : enquiry.status === "BOOKED" ? "bg-emerald-100 text-emerald-700" : enquiry.status === "DECLINED" ? "bg-rose-100 text-rose-700" : "bg-slate-100 text-slate-700"}`}>
                                   {enquiry.status}
                                 </span>
+                                {enquiry.status === "NEW" ? (
+                                  <div className="flex gap-2">
+                                    <button type="button" onClick={() => reviewEnquiry(enquiry.id, "ACCEPTED")} className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-700">Accept</button>
+                                    <button type="button" onClick={() => reviewEnquiry(enquiry.id, "DECLINED")} className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100">Decline</button>
+                                  </div>
+                                ) : null}
                               </div>
                             </div>
                           </div>
@@ -702,40 +850,6 @@ export default function DashboardClient() {
                     </div>
                   </div>
                 </>
-              ) : activeVendorSection === "Notifications" ? (
-                <div className="rounded-[32px] bg-white p-6 shadow-sm">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-500">Open notifications</p>
-                      <h2 className="mt-1 text-2xl font-semibold text-slate-950">Your incoming requests</h2>
-                    </div>
-                    <button type="button" onClick={loadEnquiries} className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
-                      Refresh list
-                    </button>
-                  </div>
-
-                  <div className="mt-6 space-y-4">
-                    {enquiryError ? <p role="alert" className="rounded-2xl bg-rose-50 p-4 text-sm text-rose-700">{enquiryError}</p> : null}
-                    {isLoadingEnquiries ? <p className="text-sm text-slate-500">Loading requests…</p> : null}
-                    {vendorEnquiries.map((enquiry) => (
-                      <div key={enquiry.id} className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                          <div>
-                            <p className="text-sm font-semibold text-slate-950">{contactName(enquiry, "VENDOR")}</p>
-                            <p className="mt-1 text-sm text-slate-600">{enquiry.eventType} · {enquiry.eventDate} · {enquiry.guestCount} guests</p>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
-                            <span>{enquiry.budget || "Budget not specified"}</span>
-                            <span className="rounded-full bg-white px-3 py-1 text-slate-700 shadow-sm">{enquiry.status}</span>
-                            {enquiry.status === "NEW" ? <><button type="button" onClick={() => reviewEnquiry(enquiry.id, "ACCEPTED")} className="rounded-full bg-emerald-600 px-3 py-1 font-semibold text-white">Accept</button><button type="button" onClick={() => reviewEnquiry(enquiry.id, "DECLINED")} className="rounded-full border border-slate-200 bg-white px-3 py-1 font-semibold text-slate-700">Decline</button></> : null}
-                             {enquiry.chatRoom?.id ? <button type="button" onClick={() => openChat(enquiry)} className="rounded-full bg-blue-600 px-3 py-1 font-semibold text-white">Chat</button> : null}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                    {!isLoadingEnquiries && vendorEnquiries.length === 0 && !enquiryError ? <p className="text-sm text-slate-500">No planner requests yet.</p> : null}
-                  </div>
-                </div>
               ) : activeVendorSection === "Bookings" ? (
                 <div className="rounded-[32px] bg-white p-6 shadow-sm">
                   <div className="flex items-center justify-between">
@@ -743,7 +857,7 @@ export default function DashboardClient() {
                       <p className="text-sm font-semibold text-slate-500">Confirmed work</p>
                       <h2 className="mt-1 text-2xl font-semibold text-slate-950">Upcoming bookings</h2>
                     </div>
-                    <button type="button" className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
+                    <button type="button" onClick={exportVendorSchedule} className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
                       Export schedule
                     </button>
                   </div>
@@ -757,7 +871,7 @@ export default function DashboardClient() {
                             <p className="mt-1 text-sm text-slate-600">{booking.eventType} · {booking.eventLocation}</p>
                           </div>
                           <div className="text-sm text-slate-500 sm:text-right">
-                            <p>{booking.eventDate}</p>
+                            <p>{formatDate(booking.eventDate)}</p>
                             <p className="mt-1 font-semibold text-slate-900">{booking.budget || "Budget not specified"}</p>
                             <span className="mt-1 inline-flex rounded-full bg-white px-3 py-1 text-slate-700 shadow-sm">{booking.status}</span>
                           </div>
@@ -788,7 +902,7 @@ export default function DashboardClient() {
                             <p className="mt-1 text-sm text-slate-600">{enquiry.eventType} enquiry</p>
                             <p className="mt-2 text-sm text-slate-500">{enquiry.specialNotes || "Open conversation"}</p>
                           </div>
-                          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">{enquiry.createdAt ? new Date(enquiry.createdAt).toLocaleDateString() : "Recent"}</p>
+                           <p className="text-xs uppercase tracking-[0.2em] text-slate-400">{formatDate(enquiry.createdAt)}</p>
                         </div>
                       </button>
                     ))}
@@ -986,61 +1100,6 @@ export default function DashboardClient() {
     );
   }
 
-  async function saveVendorProfile() {
-    setIsSaving(true);
-    setSaveError(null);
-    setVendorProfileSaved(false);
-    const result = await updateMyVendorProfile(vendorProfileForm, getAuthToken() ?? undefined);
-    setIsSaving(false);
-    if (result.error) {
-      setSaveError(result.error);
-    } else {
-      setVendorProfileSaved(true);
-      setTimeout(() => setVendorProfileSaved(false), 3000);
-    }
-  }
-
-  async function handleAddPortfolioItem() {
-    setPortfolioError(null);
-    if (!portfolioForm.title.trim() || !portfolioImageFile) {
-      setPortfolioError("Please provide a title and upload a photo or video.");
-      return;
-    }
-
-    setIsSavingPortfolio(true);
-    const formData = new FormData();
-    formData.append("media", portfolioImageFile);
-    formData.append("caption", portfolioForm.title);
-    formData.append("priceRange", portfolioForm.priceRange);
-    formData.append("mediaType", portfolioForm.mediaType);
-    if (portfolioForm.description.trim()) {
-      formData.append("description", portfolioForm.description);
-    }
-
-    const result = await createPortfolioItem(formData, getAuthToken() ?? undefined);
-    setIsSavingPortfolio(false);
-    if (result.error) {
-      setPortfolioError(result.error);
-    } else {
-      await loadPortfolio();
-      setPortfolioForm({ title: "", description: "", priceRange: "", mediaType: "IMAGE" });
-      setPortfolioImageFile(null);
-      setPortfolioImagePreview(null);
-      setShowPortfolioForm(false);
-    }
-  }
-
-  async function handleDeletePortfolioItem(id: string) {
-    const confirmed = window.confirm("Delete this portfolio item? This action cannot be undone.");
-    if (!confirmed) return;
-    const result = await deletePortfolioItem(id, getAuthToken() ?? undefined);
-    if (result.error) {
-      setPortfolioError(result.error);
-    } else {
-      await loadPortfolio();
-    }
-  }
-
   if (!isPlanner) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-100 px-6 py-16 text-center">
@@ -1143,13 +1202,6 @@ export default function DashboardClient() {
             </nav>
 
           <div className="my-4 border-t border-slate-200" />
-
-          <div className="mt-10 rounded-[28px] bg-slate-50 p-5">
-            <p className="text-sm font-semibold text-slate-900">Need help?</p>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Reach out to support for booking or vendor guidance.
-            </p>
-          </div>
 
           <button
             type="button"
@@ -1379,7 +1431,7 @@ export default function DashboardClient() {
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                               <div className="flex-1">
                                 <p className="text-sm font-semibold text-slate-950">{event.name}</p>
-                                <p className="mt-1 text-sm text-slate-600">{event.eventType} · {new Date(event.eventDate).toLocaleDateString()}</p>
+                                 <p className="mt-1 text-sm text-slate-600">{event.eventType} · {formatDate(event.eventDate)}</p>
                                 <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-500">
                                   <span>{event.location}</span>
                                   <span>·</span>
@@ -1849,7 +1901,7 @@ export default function DashboardClient() {
                                   </div>
                                   <div>
                                     <p className="text-sm font-semibold text-slate-950">{checkIn.name}</p>
-                                    <p className="text-xs text-slate-500">{checkIn.ticketType} · {new Date(checkIn.checkedInAt).toLocaleString()}</p>
+                                     <p className="text-xs text-slate-500">{checkIn.ticketType} · {formatDateWithTime(checkIn.checkedInAt)}</p>
                                   </div>
                                 </div>
                                 <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">Checked In</span>
@@ -1973,7 +2025,7 @@ export default function DashboardClient() {
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                           <p className="text-sm font-semibold text-slate-950">{contactName(enquiry, "PLANNER")}</p>
-                          <p className="mt-1 text-sm text-slate-600">{enquiry.eventType} · {enquiry.eventDate}</p>
+                           <p className="mt-1 text-sm text-slate-600">{enquiry.eventType} · {formatDate(enquiry.eventDate)}</p>
                         </div>
                         <div className="flex flex-col items-start gap-2 text-sm text-slate-500 sm:items-end">
                           <span>{enquiry.budget || "Budget not specified"}</span>
@@ -2025,6 +2077,54 @@ export default function DashboardClient() {
                 </div>
               </div>
             </>
+          ) : activeSection === "Bookings" ? (
+            <div className="rounded-[32px] bg-white p-6 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-500">Your bookings</p>
+                  <h2 className="mt-1 text-2xl font-semibold text-slate-950">Booking requests</h2>
+                </div>
+                <button type="button" onClick={loadPlannerBookings} className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
+                  Refresh
+                </button>
+              </div>
+              <div className="mt-6 space-y-4">
+                {isLoadingPlannerBookings ? (
+                  <p className="text-sm text-slate-500">Loading bookings...</p>
+                ) : plannerBookingsError ? (
+                  <p role="alert" className="text-sm text-rose-600">{plannerBookingsError}</p>
+                ) : plannerBookings.length === 0 ? (
+                  <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-8 text-center">
+                    <p className="text-sm text-slate-600">No bookings yet.</p>
+                    <p className="mt-1 text-xs text-slate-500">Find and book vendors for your events.</p>
+                    <button type="button" onClick={() => setActiveSection("Discover Vendors")} className="mt-4 rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-700">
+                      Find Vendors
+                    </button>
+                  </div>
+                ) : (
+                  plannerBookings.map((booking) => (
+                    <div key={booking.id} className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-950">{contactName(booking, "PLANNER")}</p>
+                          <p className="mt-1 text-sm text-slate-600">{booking.eventType} · {formatDate(booking.eventDate)}</p>
+                          <p className="mt-1 text-xs text-slate-500">{booking.eventLocation}</p>
+                        </div>
+                        <div className="flex flex-col items-start gap-2 text-sm text-slate-500 sm:items-end">
+                          <span>{booking.budget || "Budget not specified"}</span>
+                          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${booking.status === "BOOKED" ? "bg-emerald-100 text-emerald-700" : booking.status === "DECLINED" ? "bg-rose-100 text-rose-700" : booking.status === "NEW" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-700"}`}>
+                            {booking.status}
+                          </span>
+                          {booking.chatRoom?.id ? (
+                            <button type="button" onClick={() => openChat(booking)} className="rounded-full bg-blue-600 px-3 py-1 font-semibold text-white">Chat</button>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           ) : activeSection === "Profile" ? (
             <div className="rounded-[32px] bg-white p-6 shadow-sm">
               <p className="text-sm font-semibold text-slate-500">Planner profile</p>
@@ -2077,16 +2177,6 @@ export default function DashboardClient() {
         </section>
       </div>
     </main>
-      {bookingVendor ? (
-        <BookingModal
-          vendor={bookingVendor}
-          onClose={() => setBookingVendor(null)}
-          onBooked={(vendorName) => {
-            setBookingNotice(`Booking request sent to ${vendorName}. The vendor can now review it in their dashboard.`);
-            void loadEnquiries();
-          }}
-        />
-      ) : null}
       {chatEnquiry ? <EnquiryChat enquiry={chatEnquiry} currentUser={user as User} onClose={() => setChatEnquiry(null)} /> : null}
     </div>
   );

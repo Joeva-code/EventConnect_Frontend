@@ -63,7 +63,7 @@ export type BookingRequest = {
   specialNotes?: string;
 };
 
-export type EnquiryStatus = "NEW" | "PENDING" | "RESPONDED" | "ACCEPTED" | "DECLINED" | "BOOKED" | string;
+export type EnquiryStatus = "NEW" | "RESPONDED" | "DECLINED" | "BOOKED" | string;
 
 export type Enquiry = {
   id: string;
@@ -732,64 +732,20 @@ export function getAuthHeaders(token?: string): Record<string, string> {
 }
 
 export async function updateProfile(data: Partial<User>, token?: string) {
+  const user = getAuthUser();
+  const role = (user?.role ?? "").toUpperCase();
+  const path = role === "VENDOR" ? "/api/vendor/profile" : "/api/planner/profile";
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
   const auth = getAuthHeaders(token);
   if (auth.Authorization) headers.Authorization = auth.Authorization;
 
-  const candidatePaths = [
-    "/api/planner/profile",
-    "/api/vendor/profile",
-    "/api/v1/profile",
-    "/api/v1/users",
-    "/api/v1/user",
-    "/api/user",
-    "/api/profile",
-    "/api/auth/user",
-    "/api/auth/profile",
-    "/api/auth/me",
-    "/api/me",
-    "/api/user/me",
-    "/api/profile/me",
-  ];
-  const candidateMethods = ["PUT", "PATCH", "POST"];
-
-  let lastErr = "";
-
-  for (const path of candidatePaths) {
-    for (const method of candidateMethods) {
-      const result = await apiRequest<User>(path, {
-        method,
-        headers,
-        body: JSON.stringify(data),
-      });
-
-      if (!result.error) {
-        return result;
-      }
-
-      const lowerError = result.error.toLowerCase();
-      if (
-        lowerError.includes("route") ||
-        lowerError.includes("not found") ||
-        lowerError.includes("unsupported") ||
-        lowerError.includes("cannot") ||
-        lowerError.includes("permission") ||
-        lowerError.includes("403")
-      ) {
-        lastErr = `${method} ${path} -> ${result.error}`;
-        continue;
-      }
-
-      return result;
-    }
-  }
-
-  return {
-    data: null,
-    error: `Profile update route not found. Tried paths: ${candidatePaths.join(", ")}; methods: ${candidateMethods.join(", ")}. Last error: ${lastErr}`,
-  };
+  return apiRequest<User>(path, {
+    method: "PUT",
+    headers,
+    body: JSON.stringify(data),
+  });
 }
 
 export async function uploadProfileImage(file: File, token?: string): Promise<ApiResult<{ avatar: string }>> {
@@ -813,32 +769,17 @@ export async function getCurrentUser(token?: string) {
   const t = token ?? getAuthToken();
   if (t) headers.Authorization = `Bearer ${t}`;
 
-  const candidatePaths = [
-    "/api/auth/me",
-    "/api/me",
-    "/api/user/me",
-    "/api/user",
-    "/api/auth/user",
-    "/api/profile",
-    "/api/v1/me",
-    "/api/v1/user",
-  ];
+  const result = await apiRequest<User>("/api/auth/me", {
+    method: "GET",
+    headers,
+    credentials: "include",
+  });
 
-  // Probe every candidate endpoint in parallel and return the first successful
-  // response. Previously these were tried one-by-one, which could add up to N
-  // sequential round-trips on every login when the backend does not echo the
-  // user object in the login response (a major source of slow "sign in").
-  const results = await Promise.allSettled(
-    candidatePaths.map((p) => apiRequest<User>(p, { method: "GET", headers })),
-  );
-
-  for (const result of results) {
-    if (result.status === "fulfilled" && !result.value.error && result.value.data) {
-      return result.value;
-    }
+  if (!result.error && result.data) {
+    return result;
   }
 
-  return { data: null, error: "Could not fetch current user" } as ApiResult<User>;
+  return { data: null, error: result.error ?? "Could not fetch current user" } as ApiResult<User>;
 }
 
 export async function getVendorPortfolio(vendorId: string, token?: string) {
@@ -854,10 +795,10 @@ export async function getVendorPortfolio(vendorId: string, token?: string) {
 
 export async function createPortfolioItem(formData: FormData, token?: string) {
   const headers: Record<string, string> = {};
-  const t = token ?? getAuthToken();
-  if (t) headers.Authorization = `Bearer ${t}`;
+  const auth = getAuthHeaders(token);
+  if (auth.Authorization) headers.Authorization = auth.Authorization;
 
-  const result = await apiRequest<{ success: boolean; data: { id: string; mediaType: string; url: string; thumbnailUrl?: string; caption?: string; priceRange?: string; sortOrder: number } }>("/api/portfolio", {
+  const result = await apiRequest<{ success: boolean; data: { id: string; mediaType: string; url: string; thumbnailUrl?: string; caption?: string; priceRange?: string; sortOrder: number } }>("/api/vendor/portfolio", {
     method: "POST",
     headers,
     body: formData,
@@ -871,7 +812,7 @@ export async function updatePortfolioItem(id: string, data: { caption?: string; 
   const t = token ?? getAuthToken();
   if (t) headers.Authorization = `Bearer ${t}`;
 
-  const result = await apiRequest<{ success: boolean; data: { id: string; caption?: string; priceRange?: string; sortOrder?: number } }>(`/api/portfolio/${id}`, {
+  const result = await apiRequest<{ success: boolean; data: { id: string; caption?: string; priceRange?: string; sortOrder?: number } }>(`/api/vendor/portfolio/${encodeURIComponent(id)}`, {
     method: "PUT",
     headers: { ...headers, "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -884,7 +825,7 @@ export async function deletePortfolioItem(id: string, token?: string) {
   const t = token ?? getAuthToken();
   if (t) headers.Authorization = `Bearer ${t}`;
 
-  const result = await apiRequest<{ success: boolean; message?: string }>(`/api/portfolio/${id}`, {
+  const result = await apiRequest<{ success: boolean; message?: string }>(`/api/vendor/portfolio/${encodeURIComponent(id)}`, {
     method: "DELETE",
     headers,
   });
