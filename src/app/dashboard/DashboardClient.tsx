@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { clearAuth, getAuthToken, getAuthUser, getEnquiries, getEvents, getMyAvailability, getMyVendorProfile, getVendors, saveAuthUser, type Enquiry, type Event, type User, updateEnquiryStatus, updateMyAvailability, updateMyVendorProfile, updateProfile, uploadProfileImage, createPortfolioItem, deletePortfolioItem, getMaxifyIntegrationInfo, getTicketStats, getAttendanceData, getEventAnalytics, getGuestStats, syncMaxifyEvent, connectMaxifyEvent, type TicketStats, type AttendanceData, type EventAnalytics, type GuestStats, type MaxifyIntegrationInfo } from "@/lib/api";
+import { clearAuth, getAuthToken, getAuthUser, getCurrentUser, getEnquiries, getEvents, getMyAvailability, getMyVendorProfile, getVendors, saveAuthUser, type Enquiry, type Event, type User, updateEnquiryStatus, updateMyAvailability, updateMyVendorProfile, updateProfile, uploadProfileImage, createPortfolioItem, deletePortfolioItem, getMaxifyIntegrationInfo, getTicketStats, getAttendanceData, getEventAnalytics, getGuestStats, syncMaxifyEvent, connectMaxifyEvent, type TicketStats, type AttendanceData, type EventAnalytics, type GuestStats, type MaxifyIntegrationInfo } from "@/lib/api";
 import { Footer } from "@/components/landing/Footer";
 import { Header } from "@/components/landing/Header";
 import { BookingModal } from "@/components/vendors/BookingModal";
+import { CreateEventModal } from "@/components/events/CreateEventModal";
 import { VendorDirectory } from "@/components/vendors/VendorDirectory";
 import type { Vendor as DirectoryVendor } from "@/data/vendors";
 import { Search, Bell, Calendar, Ticket, Message, Check, Info, LayoutDashboard, User as UserIcon, Settings, Plus, Users, LogOut } from "@/components/landing/icons";
@@ -42,6 +43,28 @@ const plannerNavItems: PlannerNavItem[] = [
   { id: "Profile", label: "Profile", icon: <UserIcon className="h-4 w-4" /> },
   { id: "Settings", label: "Settings", icon: <Settings className="h-4 w-4" /> },
 ];
+
+// Maps URL hash fragments to planner sections so each section is directly
+// addressable (e.g. /dashboard#messages) and the shared planner sidebar links
+// (e.g. /dashboard#discover-vendors) actually open the right section.
+const plannerSectionFromHash: Record<string, PlannerSection> = {
+  dashboard: "Dashboard",
+  "maxify-tickets": "MaxifyTickets",
+  "discover-vendors": "Discover Vendors",
+  messages: "Messages",
+  profile: "Profile",
+  settings: "Settings",
+};
+
+const plannerHashForSection: Record<PlannerSection, string> = {
+  Dashboard: "dashboard",
+  "My Events": "",
+  MaxifyTickets: "maxify-tickets",
+  "Discover Vendors": "discover-vendors",
+  Messages: "messages",
+  Profile: "profile",
+  Settings: "settings",
+};
 
 type VendorSection =
   | "Dashboard"
@@ -173,7 +196,28 @@ export default function DashboardClient() {
     setEventsError(null);
     const result = await getEvents(getAuthToken() ?? undefined);
     if (result.error) {
-      setEventsError(result.error);
+      const message = String(result.error ?? "");
+      const isPermissionError = /permission/i.test(message) || message.includes("403");
+      if (isPermissionError) {
+        const me = await getCurrentUser();
+        if (me.data) {
+          const refreshedUser = me.data as User;
+          const mergedUser = { ...(getAuthUser() ?? {}), ...refreshedUser };
+          saveAuthUser(mergedUser);
+          setUser(mergedUser);
+          const retry = await getEvents(getAuthToken() ?? undefined);
+          if (!retry.error && retry.data) {
+            setEvents(retry.data);
+            setIsLoadingEvents(false);
+            return;
+          }
+          setEventsError(retry.error ?? result.error);
+        } else {
+          setEventsError(result.error);
+        }
+      } else {
+        setEventsError(result.error);
+      }
     } else if (result.data) {
       setEvents(result.data);
     }
@@ -190,10 +234,6 @@ export default function DashboardClient() {
   function showAllEnquiries() {
     setActiveSection("Messages");
     void loadEnquiries();
-  }
-
-  function goToMyEvents() {
-    router.push("/events");
   }
 
   async function loadMaxifyData(eventId: string) {
@@ -262,21 +302,52 @@ export default function DashboardClient() {
     }
   }, [selectedMaxifyEventId]);
 
+  // Support direct URL access and cross-shell links that address a section
+  // via the URL hash, e.g. /dashboard#messages or /dashboard#discover-vendors.
   useEffect(() => {
-    const authUser = getAuthUser();
-    setUser(authUser);
-
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[auth] DashboardClient mount', { hasUser: !!authUser, role: authUser?.role });
+    if (typeof window === "undefined") return;
+    const raw = window.location.hash.replace(/^#/, "");
+    const section = plannerSectionFromHash[raw];
+    if (section) {
+      setActiveSection(section);
     }
+  }, []);
 
-    if (authUser) {
-        setIsLoading(false);
-        void loadEnquiries();
-        if (authUser.role.toUpperCase() === "PLANNER") {
-          void loadEvents();
+  useEffect(() => {
+    let isMounted = true;
+
+    async function bootstrap() {
+      const storedUser = getAuthUser();
+      if (!storedUser) {
+        router.replace("/signin");
+        return;
+      }
+
+      setUser(storedUser);
+      setIsLoading(false);
+
+      const me = await getCurrentUser();
+      if (!isMounted) return;
+
+      if (me.error || !me.data) {
+        if (me.error) {
+          setEnquiryError(me.error);
         }
-        if (authUser.role.toUpperCase() === "VENDOR") {
+        return;
+      }
+
+      const refreshedUser = me.data as User;
+      const mergedUser = { ...storedUser, ...refreshedUser };
+      saveAuthUser(mergedUser);
+      setUser(mergedUser);
+
+      void loadEnquiries();
+      const role = (mergedUser.role ?? "").toUpperCase();
+      if (role === "PLANNER") {
+        void loadEvents();
+        void loadVendors();
+      }
+      if (role === "VENDOR") {
         void loadVendors();
         void getMyVendorProfile(getAuthToken() ?? undefined).then((result) => {
           if (!result.error && result.data) {
@@ -300,9 +371,13 @@ export default function DashboardClient() {
       }, 5_000);
 
       return () => window.clearInterval(enquiryRefresh);
-    } else {
-      router.replace("/signin");
     }
+
+    bootstrap();
+
+    return () => {
+      isMounted = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -357,12 +432,6 @@ export default function DashboardClient() {
       setPreviewUrl(null);
     };
   }, [selectedFile]);
-
-  useEffect(() => {
-    if (activeSection === "My Events") {
-      router.push("/events");
-    }
-  }, [activeSection, router]);
 
   async function handleSaveProfile() {
     if (!user) return;
@@ -532,9 +601,9 @@ export default function DashboardClient() {
                   clearAuth();
                   router.replace("/");
                 }}
-                className="mt-6 flex w-full items-center gap-3 rounded-3xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                className="mt-6 flex w-full items-center gap-3 rounded-3xl border border-rose-200 bg-white px-4 py-3 text-left text-sm font-semibold text-rose-700 transition hover:bg-rose-50"
               >
-                <LogOut className="h-4 w-4" />
+                <LogOut className="h-4 w-4 text-rose-500" />
                 Log out
               </button>
             </aside>
@@ -1018,7 +1087,7 @@ export default function DashboardClient() {
             <div className="fixed inset-0 z-40 bg-slate-900/40 xl:hidden" onClick={() => setSidebarOpen(false)} />
           ) : null}
 
-          <aside className={`rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm xl:relative xl:block xl:translate-x-0 fixed inset-y-0 left-0 z-50 w-[280px] overflow-y-auto transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+          <aside className={`rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm xl:sticky xl:top-0 xl:h-screen xl:overflow-y-auto xl:relative xl:block xl:translate-x-0 fixed inset-y-0 left-0 z-50 w-[280px] overflow-y-auto transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
             <div className="mb-6 flex items-center justify-between xl:hidden">
               <p className="text-sm font-semibold text-slate-950">Menu</p>
               <button type="button" onClick={() => setSidebarOpen(false)} className="rounded-full p-2.5 text-slate-500 hover:bg-slate-100 min-h-[44px] min-w-[44px] flex items-center justify-center">
@@ -1033,54 +1102,41 @@ export default function DashboardClient() {
 
             <nav className="space-y-1" aria-label="Planner navigation">
               {plannerNavItems.map((item) => {
-                const showStatusDot = item.id === "MaxifyTickets" && isPlanner;
                 const isActive = activeSection === item.id;
 
                 return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    aria-current={isActive ? "page" : undefined}
-                    onClick={() => {
-                      if (item.id === "My Events") {
-                        goToMyEvents();
-                      } else {
+                   <button
+                     key={item.id}
+                     type="button"
+                     aria-current={isActive ? "page" : undefined}
+                      onClick={() => {
+                        if (item.id === "My Events") {
+                          router.push("/my-events");
+                          return;
+                        }
                         setActiveSection(item.id);
+                        const hash = plannerHashForSection[item.id];
+                        if (hash && typeof window !== "undefined") {
+                          window.history.replaceState(null, "", `#${hash}`);
+                        }
                         if (item.id === "MaxifyTickets") {
                           setMaxifySubPage("Overview");
                         }
-                      }
-                    }}
-                    className={`flex w-full items-center gap-3 rounded-3xl px-4 py-3 text-left text-sm font-semibold transition ${
-                      isActive
-                        ? "bg-blue-600 text-white shadow"
-                        : item.imageClassName ?? "text-slate-700 hover:bg-slate-100"
-                    }`}
-                  >
-                    {item.icon && <span className="flex h-5 w-5 items-center justify-center">{item.icon}</span>}
-                    {item.image ? (
-                      <span className="flex-1">{item.image}</span>
-                    ) : (
-                      <span className="flex-1">{item.label}</span>
-                    )}
-                    {showStatusDot && (
-                      <span
-                        className={`h-2 w-2 flex-shrink-0 rounded-full ${
-                          maxifyIntegration
-                            ? "bg-emerald-500"
-                            : selectedMaxifyEventId
-                              ? "bg-amber-500"
-                              : "bg-slate-400"
-                        }`}
-                        title={
-                          maxifyIntegration
-                            ? "MaxifyTickets connected"
-                            : selectedMaxifyEventId
-                              ? "MaxifyTickets not connected"
-                              : "Select an event"
-                        }
-                      />
-                    )}
+                      }}
+                     className={`flex w-full items-center gap-3 rounded-3xl px-4 py-3 text-left text-sm font-semibold transition ${
+                       isActive
+                         ? item.id === "MaxifyTickets"
+                           ? "bg-white text-slate-950 shadow"
+                           : "bg-blue-600 text-white shadow"
+                         : item.imageClassName ?? "text-slate-700 hover:bg-slate-100"
+                     }`}
+                   >
+                     {item.icon && <span className="flex h-5 w-5 items-center justify-center">{item.icon}</span>}
+                     {item.image ? (
+                       <span className="flex-1">{item.image}</span>
+                     ) : (
+                       <span className="flex-1">{item.label}</span>
+                     )}
                   </button>
                 );
               })}
@@ -1101,9 +1157,9 @@ export default function DashboardClient() {
               clearAuth();
               router.replace("/");
             }}
-            className="mt-6 flex w-full items-center gap-3 rounded-3xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+            className="mt-6 flex w-full items-center gap-3 rounded-3xl border border-rose-200 bg-white px-4 py-3 text-left text-sm font-semibold text-rose-700 transition hover:bg-rose-50"
           >
-            <LogOut className="h-4 w-4" />
+            <LogOut className="h-4 w-4 text-rose-500" />
             Log out
           </button>
         </aside>
@@ -1190,14 +1246,16 @@ export default function DashboardClient() {
                     <h1 className="mt-2 text-2xl font-semibold text-slate-950 sm:text-3xl">Here&apos;s what&apos;s happening with your events.</h1>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => router.push("/events/new")}
-                      className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
-                    >
-                      <Plus className="h-4 w-4" />
-                      Create Event
-                    </button>
+                    {isPlanner ? (
+                      <button
+                        type="button"
+                        onClick={() => router.push("/events/new")}
+                        className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Create Event
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => setActiveSection("Discover Vendors")}
@@ -1305,13 +1363,15 @@ export default function DashboardClient() {
                       ) : events.length === 0 ? (
                          <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-8 text-center">
                            <p className="text-sm text-slate-600">No events yet. Create your first event to get started.</p>
-                           <button
-                             type="button"
-                             onClick={() => router.push("/events/new")}
-                             className="mt-4 rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
-                           >
-                             Create Event
-                           </button>
+                           {isPlanner ? (
+                             <button
+                               type="button"
+                               onClick={() => router.push("/events/new")}
+                               className="mt-4 rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                             >
+                               Create Event
+                             </button>
+                           ) : null}
                          </div>
                        ) : (
                         events.slice(0, 3).map((event) => (
@@ -1403,13 +1463,15 @@ export default function DashboardClient() {
                       ) : events.length === 0 ? (
                          <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-8 text-center">
                            <p className="text-sm text-slate-600">Create an event to start tracking event health.</p>
-                           <button
-                             type="button"
-                             onClick={() => router.push("/events/new")}
-                             className="mt-4 rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
-                           >
-                             Create Event
-                           </button>
+                           {isPlanner ? (
+                             <button
+                               type="button"
+                               onClick={() => router.push("/events/new")}
+                               className="mt-4 rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                             >
+                               Create Event
+                             </button>
+                           ) : null}
                          </div>
                        ) : (
                         events.slice(0, 4).map((event) => (
@@ -1443,13 +1505,13 @@ export default function DashboardClient() {
                        <div className="flex items-center justify-between">
                          <div>
                            <p className="text-sm font-semibold text-slate-500">Ticketing</p>
-                           <Image
-                             src="/image.png"
-                             alt="Maxify Tickets"
-                             width={200}
-                             height={60}
-                             className="mt-1 h-16 w-auto object-contain"
-                           />
+                            <Image
+                              src="/image.png"
+                              alt="Maxify Tickets"
+                              width={200}
+                              height={60}
+                              className="mt-1 h-16 w-auto object-contain"
+                            />
                          </div>
                          <div className="flex items-center gap-2">
                            <button

@@ -2,45 +2,72 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getEvents, type Event } from "@/lib/api";
+import { clearAuth, getEvents, getAuthUser, getCurrentUser, saveAuthUser, getAuthToken, type User, type Event } from "@/lib/api";
 import { Calendar, MapPin, Users, Plus } from "@/components/landing/icons";
+import { CreateEventModal } from "@/components/events/CreateEventModal";
 
 export default function EventsClient() {
   const router = useRouter();
   const [events, setEvents] = useState<Event[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(() => getAuthUser());
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+
+  const isPlanner = (user?.role || "").toUpperCase() === "PLANNER";
 
   useEffect(() => {
+    if (!user) {
+      router.replace("/signin");
+      return;
+    }
+    if (!isPlanner) {
+      router.replace("/dashboard");
+    }
+  }, [user, isPlanner, router]);
+
+  useEffect(() => {
+    if (!isPlanner) return;
     getEvents()
       .then((result) => {
         if (result.error) {
-          setError(result.error);
+          const message = String(result.error ?? "");
+          const isPermissionError = /permission/i.test(message) || message.includes("403");
+          if (isPermissionError) {
+            getCurrentUser().then((me) => {
+              if (me.data) {
+                const mergedUser = { ...(getAuthUser() ?? {} as User), ...me.data };
+                saveAuthUser(mergedUser);
+                setUser(mergedUser);
+                const role = (mergedUser.role ?? "").toUpperCase();
+                if (role !== "PLANNER") {
+                  router.replace("/dashboard");
+                  return;
+                }
+                getEvents(getAuthToken() ?? undefined)
+                  .then((retry) => {
+                    if (retry.error) setError(retry.error);
+                    else setEvents(retry.data || []);
+                  })
+                  .catch(() => setError("Failed to load events"))
+                  .finally(() => setIsLoading(false));
+              } else {
+                clearAuth();
+                router.replace("/signin");
+              }
+            });
+          } else {
+            setError(result.error);
+            setIsLoading(false);
+          }
         } else {
           setEvents(result.data || []);
+          setIsLoading(false);
         }
       })
       .catch(() => setError("Failed to load events"))
-      .finally(() => setIsLoading(false));
-  }, []);
-
-  const loadEvents = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const result = await getEvents();
-
-      if (result.error) {
-        setError(result.error);
-      } else {
-        setEvents(result.data || []);
-      }
-    } catch {
-      setError("Failed to load events");
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+      .finally(() => { setIsLoading(false); });
+  }, [isPlanner, router]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -66,6 +93,52 @@ export default function EventsClient() {
       day: "numeric",
     });
   };
+
+  const loadEvents = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await getEvents();
+
+      if (result.error) {
+        const message = String(result.error ?? "");
+        const isPermissionError = /permission/i.test(message) || message.includes("403");
+        if (isPermissionError) {
+          const me = await getCurrentUser();
+          if (me.data) {
+            const mergedUser = { ...(getAuthUser() ?? {} as User), ...me.data };
+            saveAuthUser(mergedUser);
+            setUser(mergedUser);
+            const retry = await getEvents(getAuthToken() ?? undefined);
+            if (retry.error) setError(retry.error);
+            else setEvents(retry.data || []);
+          } else {
+            clearAuth();
+            router.replace("/signin");
+          }
+        } else {
+          setError(result.error);
+        }
+      } else {
+        setEvents(result.data || []);
+      }
+    } catch {
+      setError("Failed to load events");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [router]);
+
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="text-center">
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
+          <p className="mt-4 text-slate-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -102,13 +175,18 @@ export default function EventsClient() {
         <p className="mt-2 text-slate-600">
           Create your first event to get started with Maxify Tickets integration.
         </p>
-        <button
-          onClick={() => router.push("/events/new")}
-          className="mt-6 rounded-full bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-700"
-        >
-          <Plus className="mr-2 inline-block h-4 w-4" />
-          Create Your First Event
-        </button>
+        {isPlanner ? (
+          <button
+            onClick={() => setCreateModalOpen(true)}
+            className="mt-6 rounded-full bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            <Plus className="mr-2 inline-block h-4 w-4" />
+            Create Your First Event
+          </button>
+        ) : null}
+        {createModalOpen ? (
+          <CreateEventModal onClose={() => setCreateModalOpen(false)} onCreated={() => void loadEvents()} />
+        ) : null}
       </div>
     );
   }
@@ -119,13 +197,15 @@ export default function EventsClient() {
         <p className="text-sm text-slate-600">
           {events.length} {events.length === 1 ? "event" : "events"}
         </p>
-        <button
-          onClick={() => router.push("/events/new")}
-          className="rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
-        >
-          <Plus className="mr-2 inline-block h-4 w-4" />
-          New Event
-        </button>
+        {isPlanner ? (
+          <button
+            onClick={() => setCreateModalOpen(true)}
+            className="rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            <Plus className="mr-2 inline-block h-4 w-4" />
+            New Event
+          </button>
+        ) : null}
       </div>
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {events.map((event) => (
@@ -184,6 +264,9 @@ export default function EventsClient() {
           </div>
         ))}
       </div>
+      {createModalOpen ? (
+        <CreateEventModal onClose={() => setCreateModalOpen(false)} onCreated={() => void loadEvents()} />
+      ) : null}
     </div>
   );
 }
