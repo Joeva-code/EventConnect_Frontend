@@ -14,7 +14,7 @@ export default function EventsClient() {
   const [user, setUser] = useState<User | null>(() => getAuthUser());
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
-  const isPlanner = (user?.role || "").toUpperCase() === "PLANNER";
+  const isPlanner = (user?.role || "").toUpperCase() === "PLANNER" || (user?.role || "").toUpperCase() === "ADMIN";
 
   useEffect(() => {
     if (!user) {
@@ -39,8 +39,8 @@ export default function EventsClient() {
                 const mergedUser = { ...(getAuthUser() ?? {} as User), ...me.data };
                 saveAuthUser(mergedUser);
                 setUser(mergedUser);
-                const role = (mergedUser.role ?? "").toUpperCase();
-                if (role !== "PLANNER") {
+                 const role = (mergedUser.role ?? "").toUpperCase();
+                 if (role !== "PLANNER" && role !== "ADMIN") {
                   router.replace("/dashboard");
                   return;
                 }

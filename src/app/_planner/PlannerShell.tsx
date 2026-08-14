@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import { Calendar, Message, Search, LayoutDashboard, LogOut, User as UserIcon, Ticket } from "@/components/landing/icons";
 import { Logo } from "@/components/branding/Logo";
+import { USER_STORAGE_KEY, TOKEN_STORAGE_KEY } from "@/lib/api";
 
 export type PlannerSection =
   | "Dashboard"
@@ -83,10 +84,10 @@ export function PlannerShell({
 
   const handleLogout = () => {
     if (typeof window !== "undefined") {
-      window.localStorage.removeItem("eventconnect_token");
-      window.localStorage.removeItem("eventconnect_user");
-      window.sessionStorage.removeItem("eventconnect_token");
-      window.sessionStorage.removeItem("eventconnect_user");
+      window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+      window.localStorage.removeItem(USER_STORAGE_KEY);
+      window.sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+      window.sessionStorage.removeItem(USER_STORAGE_KEY);
     }
     router.replace("/");
   };

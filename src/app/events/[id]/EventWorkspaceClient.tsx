@@ -117,7 +117,7 @@ export default function EventWorkspaceClient({ eventId }: { eventId: string }) {
       router.replace("/signin");
       return;
     }
-    if (user.role.toUpperCase() !== "PLANNER") {
+    if (user.role.toUpperCase() !== "PLANNER" && user.role.toUpperCase() !== "ADMIN") {
       router.replace("/dashboard");
     }
   }, [user, router]);
@@ -173,7 +173,7 @@ export default function EventWorkspaceClient({ eventId }: { eventId: string }) {
             const mergedUser = { ...(getAuthUser() ?? {} as User), ...me.data };
             saveAuthUser(mergedUser);
             setUser(mergedUser);
-            if ((mergedUser.role ?? "").toUpperCase() !== "PLANNER") {
+             if ((mergedUser.role ?? "").toUpperCase() !== "PLANNER" && (mergedUser.role ?? "").toUpperCase() !== "ADMIN") {
               router.replace("/dashboard");
               return;
             }

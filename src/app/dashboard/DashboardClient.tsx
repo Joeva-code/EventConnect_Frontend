@@ -397,7 +397,7 @@ export default function DashboardClient() {
 
       void loadEnquiries();
       const role = (mergedUser.role ?? "").toUpperCase();
-      if (role === "PLANNER") {
+      if (role === "PLANNER" || role === "ADMIN") {
         void loadEvents();
         void loadVendors();
         void loadPlannerBookings();
@@ -625,6 +625,7 @@ export default function DashboardClient() {
   const role = user.role?.toUpperCase?.() ?? "";
   const isPlanner = role === "PLANNER";
   const isVendor = role === "VENDOR";
+  const isAdmin = role === "ADMIN";
 
   const greetingName = user.firstName || user.email.split("@")[0];
   const hour = new Date().getHours();
@@ -1101,7 +1102,7 @@ export default function DashboardClient() {
     );
   }
 
-  if (!isPlanner) {
+  if (!isPlanner && !isAdmin) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-100 px-6 py-16 text-center">
         <div className="rounded-3xl border border-slate-200 bg-white px-8 py-10 shadow-sm">

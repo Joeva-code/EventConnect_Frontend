@@ -362,10 +362,17 @@ export async function refreshToken(): Promise<RefreshResult | null> {
     console.log('[auth] attempting token refresh');
   }
   try {
+    const currentToken = getAuthToken();
+    const refreshHeaders: Record<string, string> = { "Content-Type": "application/json" };
+    if (currentToken) {
+      refreshHeaders.Authorization = `Bearer ${currentToken}`;
+    }
+
     const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
       method: "POST",
       credentials: "include",
-      headers: { "Content-Type": "application/json" },
+      headers: refreshHeaders,
+      body: currentToken ? JSON.stringify({ token: currentToken }) : undefined,
     });
 
     if (!response.ok) {
@@ -416,8 +423,8 @@ export const GOOGLE_AUTH_URL =
   process.env.NEXT_PUBLIC_GOOGLE_AUTH_URL ??
   `${API_BASE_URL}/api/auth/google`;
 
-const USER_STORAGE_KEY = "eventconnect_user";
-const TOKEN_STORAGE_KEY = "eventconnect_token";
+export const USER_STORAGE_KEY = "eventconnect_user";
+export const TOKEN_STORAGE_KEY = "eventconnect_token";
 
 export function getAuthToken() {
   if (typeof window === "undefined") {
@@ -517,7 +524,7 @@ export function getAuthUser(): User | null {
       email: decoded.email ?? "",
       firstName: decoded.firstName ?? "",
       lastName: decoded.lastName ?? "",
-      role: decoded.role ?? "PLANNER",
+      role: decoded.role ?? "",
     } as User;
     if (process.env.NODE_ENV !== 'production') {
       console.log('[auth] getAuthUser from token', { role: user.role, email: user.email });

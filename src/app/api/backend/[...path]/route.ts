@@ -30,6 +30,7 @@ async function proxy(request: NextRequest, context: RouteContext<"/api/backend/[
       body,
       redirect: "manual",
       cache: "no-store",
+      credentials: "include",
     });
 
     if (process.env.NODE_ENV !== 'production') {

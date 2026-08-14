@@ -32,11 +32,11 @@ export default function NewEventPage() {
     );
   }
 
-  if ((user.role || "").toUpperCase() !== "PLANNER") {
+  if ((user.role || "").toUpperCase() !== "PLANNER" && (user.role || "").toUpperCase() !== "ADMIN") {
     return (
       <div className="mx-auto max-w-2xl">
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center text-sm text-amber-700">
-          Only planners can create events.
+          Only planners and admins can create events.
           <button
             type="button"
             onClick={() => router.push("/dashboard")}
@@ -73,7 +73,7 @@ export default function NewEventPage() {
             const mergedUser = { ...(getAuthUser() ?? {} as User), ...me.data };
             saveAuthUser(mergedUser);
             setUser(mergedUser);
-            if ((mergedUser.role ?? "").toUpperCase() !== "PLANNER") {
+             if ((mergedUser.role ?? "").toUpperCase() !== "PLANNER" && (mergedUser.role ?? "").toUpperCase() !== "ADMIN") {
               router.replace("/dashboard");
               return;
             }
