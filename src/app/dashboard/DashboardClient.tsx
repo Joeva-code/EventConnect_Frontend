@@ -150,6 +150,7 @@ export default function DashboardClient() {
   const [chatEnquiry, setChatEnquiry] = useState<Enquiry | null>(null);
   const [readChatIds, setReadChatIds] = useState<Set<string>>(new Set());
   const [maxifySubPage, setMaxifySubPage] = useState<string>("Overview");
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const searchParams = useSearchParams();
 
@@ -1301,7 +1302,7 @@ export default function DashboardClient() {
                     {isPlanner ? (
                       <button
                         type="button"
-                        onClick={() => router.push("/events/new")}
+                        onClick={() => setShowCreateModal(true)}
                         className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
                       >
                         <Plus className="h-4 w-4" />
@@ -2178,6 +2179,15 @@ export default function DashboardClient() {
       </div>
     </main>
       {chatEnquiry ? <EnquiryChat enquiry={chatEnquiry} currentUser={user as User} onClose={() => setChatEnquiry(null)} /> : null}
+      {showCreateModal ? (
+        <CreateEventModal
+          onClose={() => setShowCreateModal(false)}
+          onCreated={() => {
+            setShowCreateModal(false);
+            void loadEvents();
+          }}
+        />
+      ) : null}
     </div>
   );
 }
