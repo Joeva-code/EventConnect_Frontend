@@ -3,6 +3,17 @@ import Image from "next/image";
 import { MapPin, Star } from "@/components/landing/icons";
 import type { Vendor } from "@/data/vendors";
 
+const categoryColors: Record<string, { bg: string; text: string }> = {
+  "Decoration & Styling": { bg: "bg-rose-100", text: "text-rose-700" },
+  "Catering & Cakes": { bg: "bg-amber-100", text: "text-amber-700" },
+  "Venue & Space": { bg: "bg-indigo-100", text: "text-indigo-700" },
+  "Music & Entertainment": { bg: "bg-purple-100", text: "text-purple-700" },
+  "Photography & Video Editing": { bg: "bg-emerald-100", text: "text-emerald-700" },
+  "Stage & Lighting": { bg: "bg-orange-100", text: "text-orange-700" },
+};
+
+const fallbackColor = { bg: "bg-slate-100", text: "text-slate-600" };
+
 export function VendorCard({
   vendor,
   compact = false,
@@ -16,6 +27,8 @@ export function VendorCard({
   const [imageError, setImageError] = useState(false);
 
   const showImage = hasImage && !imageError;
+
+  const colors = categoryColors[vendor.category] || fallbackColor;
 
   return (
     <div
@@ -34,7 +47,7 @@ export function VendorCard({
             onError={() => setImageError(true)}
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-slate-100 text-2xl font-semibold text-slate-500">
+          <div className={`flex h-full w-full items-center justify-center ${colors.bg} ${colors.text} text-2xl font-semibold`}>
             {vendor.name
               .split(" ")
               .map((part) => part[0])
