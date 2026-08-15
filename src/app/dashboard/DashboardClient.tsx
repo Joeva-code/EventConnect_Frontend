@@ -429,7 +429,7 @@ export default function DashboardClient() {
 
       const enquiryRefresh = window.setInterval(() => {
         void loadEnquiries();
-      }, 5_000);
+      }, 15_000);
 
       return () => window.clearInterval(enquiryRefresh);
     }

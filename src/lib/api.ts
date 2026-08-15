@@ -7,7 +7,9 @@ const API_BASE_URL = "/api/backend";
 
 // Hard cap on how long any API request waits before failing fast with a clear
 // message instead of hanging the UI (e.g. on a slow or sleeping backend).
-const REQUEST_TIMEOUT_MS = 15000;
+const REQUEST_TIMEOUT_MS = 30000;
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 1000;
 
 export type ApiError = {
   message?: string;
@@ -253,134 +255,158 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<ApiR
     ? (init.headers ?? {})
     : ({ "Content-Type": "application/json", ...(init.headers ?? {}) });
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
-  let response: Response;
-  try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
-      ...init,
-      headers,
-      credentials: (init.credentials ?? "include"),
-      signal: init.signal ?? controller.signal,
-    });
-    clearTimeout(timeout);
-  } catch (err) {
-    clearTimeout(timeout);
-    if (controller.signal.aborted) {
-      return {
-        data: null,
-        error: "The request took too long. Please check your connection and try again.",
-        statusCode: 408,
-      };
+  const attemptFetch = async (signal?: AbortSignal) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      const response = await fetch(`${API_BASE_URL}${path}`, {
+        ...init,
+        headers,
+        credentials: (init.credentials ?? "include"),
+        signal: signal ?? controller.signal,
+      });
+      clearTimeout(timeout);
+      return response;
+    } catch (err) {
+      clearTimeout(timeout);
+      throw err;
     }
-    return {
-      data: null,
-      error: "Unable to reach the server. Please try again in a moment.",
-    };
-  }
+  };
 
-  const text = await response.text();
-  let json: unknown = null;
-  try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    json = null;
-  }
-
-    if (!response.ok) {
-      let message = response.statusText || "Request failed";
-
-      if (typeof json === "object" && json !== null) {
-        const body = json as Record<string, unknown>;
-        if (body.message) {
-          message = String(body.message);
-        } else if (Array.isArray(body.errors) && body.errors.length > 0) {
-          message = body.errors
-            .map((error) => {
-              if (typeof error === "string") return error;
-              if (typeof error === "object" && error !== null) {
-                const details = error as Record<string, unknown>;
-                if (details.msg && details.path) return `${details.path}: ${details.msg}`;
-                if (details.msg) return String(details.msg);
-              }
-              return JSON.stringify(error);
-            })
-            .join(". ");
-        }
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const response = await attemptFetch();
+      const text = await response.text();
+      let json: unknown = null;
+      try {
+        json = text ? JSON.parse(text) : null;
+      } catch {
+        json = null;
       }
 
-      if (response.status >= 500) {
-        console.error(`API error ${response.status}: ${message}`, { status: response.status, body: json });
-      }
+      if (!response.ok) {
+        let message = response.statusText || "Request failed";
 
-      if (response.status === 401) {
-        if (process.env.NODE_ENV !== 'production') {
-          console.log(`[auth] apiRequest 401 on ${path} — attempting token refresh`, { method: init.method, path });
+        if (typeof json === "object" && json !== null) {
+          const body = json as Record<string, unknown>;
+          if (body.message) {
+            message = String(body.message);
+          } else if (Array.isArray(body.errors) && body.errors.length > 0) {
+            message = body.errors
+              .map((error) => {
+                if (typeof error === "string") return error;
+                if (typeof error === "object" && error !== null) {
+                  const details = error as Record<string, unknown>;
+                  if (details.msg && details.path) return `${details.path}: ${details.msg}`;
+                  if (details.msg) return String(details.msg);
+                }
+                return JSON.stringify(error);
+              })
+              .join(". ");
+          }
         }
-        const refreshed = await refreshToken();
-        if (refreshed) {
+
+        if (response.status >= 500 && attempt < MAX_RETRIES) {
+          await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS * (attempt + 1)));
+          continue;
+        }
+
+        if (response.status >= 500) {
+          console.error(`API error ${response.status}: ${message}`, { status: response.status, body: json });
+        }
+
+        if (response.status === 401) {
           if (process.env.NODE_ENV !== 'production') {
-            console.log(`[auth] token refreshed, retrying ${path}`);
+            console.log(`[auth] apiRequest 401 on ${path} — attempting token refresh`, { method: init.method, path });
           }
-          const retryHeaders = (init.body instanceof FormData)
-            ? (init.headers ?? {})
-            : ({ "Content-Type": "application/json", ...(init.headers ?? {}) });
-          const retryAuth = getAuthHeaders();
-          if (retryAuth.Authorization) Object.assign(retryHeaders, retryAuth);
-          const retryResponse = await fetch(`${API_BASE_URL}${path}`, {
-            ...init,
-            headers: retryHeaders,
-            credentials: (init.credentials ?? "include"),
-            signal: init.signal ?? (init.body instanceof FormData ? undefined : new AbortController().signal),
-          });
-          const retryText = await retryResponse.text();
-          let retryJson: unknown = null;
-          try {
-            retryJson = retryText ? JSON.parse(retryText) : null;
-          } catch {
-            retryJson = null;
-          }
-          if (retryResponse.ok) {
-            return { data: retryJson as T, error: null };
-          }
-          let retryMessage = retryResponse.statusText || "Request failed after refresh";
-          if (typeof retryJson === "object" && retryJson !== null) {
-            const body = retryJson as Record<string, unknown>;
-            if (body.message) retryMessage = String(body.message);
-          }
-          if (retryResponse.status === 401) {
-            clearAuth();
-            if (typeof window !== "undefined") {
-              window.location.href = "/signin";
+          const refreshed = await refreshToken();
+          if (refreshed) {
+            if (process.env.NODE_ENV !== 'production') {
+              console.log(`[auth] token refreshed, retrying ${path}`);
             }
+            const retryHeaders = (init.body instanceof FormData)
+              ? (init.headers ?? {})
+              : ({ "Content-Type": "application/json", ...(init.headers ?? {}) });
+            const retryAuth = getAuthHeaders();
+            if (retryAuth.Authorization) Object.assign(retryHeaders, retryAuth);
+            const retryResponse = await fetch(`${API_BASE_URL}${path}`, {
+              ...init,
+              headers: retryHeaders,
+              credentials: (init.credentials ?? "include"),
+              signal: new AbortController().signal,
+            });
+            const retryText = await retryResponse.text();
+            let retryJson: unknown = null;
+            try {
+              retryJson = retryText ? JSON.parse(retryText) : null;
+            } catch {
+              retryJson = null;
+            }
+            if (retryResponse.ok) {
+              return { data: retryJson as T, error: null };
+            }
+            let retryMessage = retryResponse.statusText || "Request failed after refresh";
+            if (typeof retryJson === "object" && retryJson !== null) {
+              const body = retryJson as Record<string, unknown>;
+              if (body.message) retryMessage = String(body.message);
+            }
+            if (retryResponse.status === 401) {
+              clearAuth();
+              if (typeof window !== "undefined") {
+                window.location.href = "/signin";
+              }
+            }
+            return { data: null, error: retryMessage, statusCode: retryResponse.status };
           }
-          return { data: null, error: retryMessage, statusCode: retryResponse.status };
-        }
-        clearAuth();
-        if (typeof window !== "undefined") {
-          window.location.href = "/signin";
-        }
-        return { data: null, error: message, statusCode: 401 };
-      } else if (response.status === 403) {
-        const bodyMessage = typeof json === "object" && json !== null ? String((json as Record<string, unknown>).message ?? "") : "";
-        if (bodyMessage.toLowerCase().includes("verify your email")) {
           clearAuth();
           if (typeof window !== "undefined") {
-            window.location.href = "/signin?verify=1";
+            window.location.href = "/signin";
           }
-          return { data: null, error: "Please verify your email before continuing.", statusCode: 403 };
+          return { data: null, error: message, statusCode: 401 };
+        } else if (response.status === 403) {
+          const bodyMessage = typeof json === "object" && json !== null ? String((json as Record<string, unknown>).message ?? "") : "";
+          if (bodyMessage.toLowerCase().includes("verify your email")) {
+            clearAuth();
+            if (typeof window !== "undefined") {
+              window.location.href = "/signin?verify=1";
+            }
+            return { data: null, error: "Please verify your email before continuing.", statusCode: 403 };
+          }
+          if (process.env.NODE_ENV !== 'production') {
+            console.log(`[auth] apiRequest 403 on ${path}`, { method: init.method, path, body: json });
+          }
+          return { data: null, error: message, statusCode: 403 };
         }
-        if (process.env.NODE_ENV !== 'production') {
-          console.log(`[auth] apiRequest 403 on ${path}`, { method: init.method, path, body: json });
-        }
-        return { data: null, error: message, statusCode: 403 };
+
+        return { data: null, error: message, statusCode: response.status };
       }
 
-      return { data: null, error: message, statusCode: response.status };
+      return { data: json as T, error: null };
+    } catch (err) {
+      lastError = err;
+      if (attempt < MAX_RETRIES) {
+        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS * (attempt + 1)));
+        continue;
+      }
+      if (err instanceof Error && err.name === "AbortError") {
+        return {
+          data: null,
+          error: "The request took too long. Please check your connection and try again.",
+          statusCode: 408,
+        };
+      }
+      return {
+        data: null,
+        error: "Unable to reach the server. Please try again in a moment.",
+      };
     }
+  }
 
-  return { data: json as T, error: null };
+  return {
+    data: null,
+    error: lastError instanceof Error ? lastError.message : "Unable to reach the server. Please try again in a moment.",
+  };
 }
 
 export interface RefreshResult {
