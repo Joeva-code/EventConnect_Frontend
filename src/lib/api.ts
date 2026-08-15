@@ -829,6 +829,13 @@ export async function sendChatRoomMessage(roomId: string, content: string, token
   return { data: result.data?.data ?? null, error: result.error } as ApiResult<EnquiryMessage>;
 }
 
+export async function openEnquiryChat(enquiryId: string, token?: string) {
+  return apiRequest<{ success: boolean; data: { id: string; createdAt: string; updatedAt: string } }>(`/api/enquiries/${encodeURIComponent(enquiryId)}/chat`, {
+    method: "GET",
+    headers: getAuthHeaders(token),
+  });
+}
+
 export async function getEnquiryMessages(enquiryId: string, token?: string) {
   return getChatRoomMessages(enquiryId, token);
 }

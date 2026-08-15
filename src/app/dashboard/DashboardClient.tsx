@@ -657,11 +657,7 @@ export default function DashboardClient() {
   const vendorBookings = acceptedEnquiries;
   const vendorNotifications = enquiriesToNotifications(currentEnquiries, {
     onSelect: (enquiry) => {
-      if (enquiry.chatRoom?.id) {
-        openChat(enquiry);
-      } else {
-        setActiveVendorSection("Bookings");
-      }
+      openChat(enquiry);
     },
   });
   const unreadNotificationCount = vendorNotifications.filter((n) => n.unread).length;
@@ -902,7 +898,7 @@ export default function DashboardClient() {
                   </div>
 
                   <div className="mt-6 space-y-4">
-                    {vendorEnquiries.filter((enquiry) => enquiry.chatRoom?.id).map((enquiry) => (
+                    {vendorEnquiries.map((enquiry) => (
                        <button type="button" key={enquiry.id} onClick={() => openChat(enquiry)} className="w-full rounded-[28px] border border-slate-200 bg-slate-50 p-5 text-left">
                         <div className="flex items-start justify-between gap-4">
                           <div>
@@ -2038,7 +2034,7 @@ export default function DashboardClient() {
                         <div className="flex flex-col items-start gap-2 text-sm text-slate-500 sm:items-end">
                           <span>{enquiry.budget || "Budget not specified"}</span>
                           <span className="rounded-full bg-white px-3 py-1 text-slate-700 shadow-sm">{enquiry.status}</span>
-                           {enquiry.chatRoom?.id ? <button type="button" onClick={() => openChat(enquiry)} className="rounded-full bg-blue-600 px-3 py-1 font-semibold text-white">Chat</button> : null}
+                           {enquiry.chatRoom?.id || enquiry.isBookingRequest ? <button type="button" onClick={() => openChat(enquiry)} className="rounded-full bg-blue-600 px-3 py-1 font-semibold text-white">Chat</button> : null}
                         </div>
                       </div>
                     </div>
@@ -2123,9 +2119,9 @@ export default function DashboardClient() {
                           <span className={`rounded-full px-3 py-1 text-xs font-semibold ${booking.status === "BOOKED" ? "bg-emerald-100 text-emerald-700" : booking.status === "DECLINED" ? "bg-rose-100 text-rose-700" : booking.status === "NEW" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-700"}`}>
                             {booking.status}
                           </span>
-                          {booking.chatRoom?.id ? (
-                            <button type="button" onClick={() => openChat(booking)} className="rounded-full bg-blue-600 px-3 py-1 font-semibold text-white">Chat</button>
-                          ) : null}
+                           {booking.chatRoom?.id || booking.isBookingRequest ? (
+                             <button type="button" onClick={() => openChat(booking)} className="rounded-full bg-blue-600 px-3 py-1 font-semibold text-white">Chat</button>
+                           ) : null}
                         </div>
                       </div>
                     </div>

@@ -5,6 +5,7 @@ import {
   getAuthToken,
   getEnquiryMessages,
   sendEnquiryMessage,
+  openEnquiryChat,
   type Enquiry,
   type EnquiryMessage,
   type User,
@@ -31,22 +32,44 @@ export function EnquiryChat({ enquiry, currentUser, onClose }: EnquiryChatProps)
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  const [roomId, setRoomId] = useState<string | null>(enquiry.chatRoom?.id ?? null);
   const name = getParticipantName(enquiry, currentUser);
-  const roomId = enquiry.chatRoom?.id ?? enquiry.id;
 
   useEffect(() => {
     let active = true;
-    async function load() {
+    async function ensureRoom() {
       setIsLoading(true);
-      const result = await getEnquiryMessages(roomId, getAuthToken() ?? undefined);
+      setError(null);
+
+      let resolvedRoomId = enquiry.chatRoom?.id ?? null;
+
+      if (!resolvedRoomId) {
+        const opened = await openEnquiryChat(enquiry.id, getAuthToken() ?? undefined);
+        if (!active) return;
+        if (opened.error || !opened.data) {
+          setError(opened.error ?? "Unable to open chat for this request.");
+          setIsLoading(false);
+          return;
+        }
+        resolvedRoomId = opened.data.data.id;
+        setRoomId(resolvedRoomId);
+      }
+
+      if (!resolvedRoomId) {
+        setError("Unable to open chat for this request.");
+        setIsLoading(false);
+        return;
+      }
+
+      const result = await getEnquiryMessages(resolvedRoomId, getAuthToken() ?? undefined);
       if (!active) return;
       if (result.error) setError(result.error);
       else setMessages(messageList(result.data));
       setIsLoading(false);
     }
-    load();
+    ensureRoom();
     return () => { active = false; };
-  }, [roomId]);
+  }, [enquiry.id, enquiry.chatRoom?.id]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -54,7 +77,7 @@ export function EnquiryChat({ enquiry, currentUser, onClose }: EnquiryChatProps)
     if (!body) return;
     setIsSending(true);
     setError(null);
-    const result = await sendEnquiryMessage(roomId, body, getAuthToken() ?? undefined);
+    const result = await sendEnquiryMessage(roomId ?? enquiry.id, body, getAuthToken() ?? undefined);
     setIsSending(false);
     if (result.error || !result.data) {
       setError(result.error ?? "Unable to send your message.");
