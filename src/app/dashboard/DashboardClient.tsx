@@ -105,7 +105,14 @@ function enquiryList(value: unknown): Enquiry[] {
 
 function contactName(enquiry: Enquiry, role: "PLANNER" | "VENDOR") {
   const contact = role === "VENDOR" ? enquiry.planner : enquiry.vendor;
-  return contact?.name || [contact?.firstName, contact?.lastName].filter(Boolean).join(" ") || contact?.email || "EventConnect user";
+  const profile = role === "VENDOR" ? undefined : enquiry.vendorProfile;
+  return (
+    contact?.name ||
+    [contact?.firstName, contact?.lastName].filter(Boolean).join(" ") ||
+    profile?.businessName ||
+    contact?.email ||
+    "EventConnect user"
+  );
 }
 
 function getStatusColor(status: string) {
@@ -209,7 +216,7 @@ export default function DashboardClient() {
     setEnquiryError(null);
     const result = await getEnquiries(getAuthToken() ?? undefined);
     if (result.error) setEnquiryError(result.error);
-    else setEnquiries(enquiryList(result.data));
+    else setEnquiries(result.data ?? []);
     setIsLoadingEnquiries(false);
   }
 
@@ -240,7 +247,7 @@ export default function DashboardClient() {
     if (result.error) {
       setPlannerBookingsError(result.error);
     } else {
-      setPlannerBookings(enquiryList(result.data));
+      setPlannerBookings(result.data ?? []);
     }
     setIsLoadingPlannerBookings(false);
   }

@@ -78,6 +78,25 @@ export type Enquiry = {
   specialNotes?: string | null;
   status: EnquiryStatus;
   createdAt?: string;
+  updatedAt?: string;
+  isBookingRequest?: boolean;
+  bookingRequestedAt?: string;
+  bookingRespondedAt?: string | null;
+  bookedAt?: string | null;
+  responseMessage?: string | null;
+  respondedAt?: string | null;
+  isDuplicate?: boolean;
+  originalEnquiryId?: string | null;
+  vendorProfileId?: string;
+  vendorProfile?: {
+    id: string;
+    businessName: string;
+    category: string;
+    location: string;
+    profileImage?: string | null;
+    averageRating?: string | number | null;
+    totalReviews?: number | null;
+  };
   vendor?: Pick<User, "id" | "firstName" | "lastName" | "email"> & { name?: string };
   planner?: Pick<User, "id" | "firstName" | "lastName" | "email"> & { name?: string };
   chatRoom?: { id: string } | null;
@@ -735,13 +754,22 @@ export async function createBooking(data: BookingRequest, token?: string) {
   });
 }
 
-export async function getEnquiries(token?: string) {
+export async function getEnquiries(token?: string): Promise<ApiResult<Enquiry[]>> {
   const user = getAuthUser();
   const path = user?.role?.toUpperCase() === "VENDOR" ? "/api/bookings/vendor" : "/api/bookings/planner";
-  return apiRequest<{ success: boolean; data: { bookings: Enquiry[] } }>(path, {
+  const result = await apiRequest<{ success: boolean; data: { bookings: Enquiry[]; pagination?: unknown } }>(path, {
     method: "GET",
     headers: getAuthHeaders(token),
   });
+  if (result.error) {
+    return { data: null, error: result.error, statusCode: result.statusCode };
+  }
+  const responseData = result.data as { success: boolean; data: { bookings: Enquiry[]; pagination?: unknown } } | null;
+  const bookings = responseData?.data?.bookings;
+  if (Array.isArray(bookings)) {
+    return { data: bookings as Enquiry[], error: null };
+  }
+  return { data: null, error: "Unexpected response format from server.", statusCode: 500 };
 }
 
 export async function updateEnquiryStatus(
