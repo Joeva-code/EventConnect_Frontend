@@ -68,7 +68,7 @@ export function SignUpForm() {
       saveAuthToken(loginResult.data.token, true);
       let user = loginResult.data.data ?? getAuthUser();
       if (!user) {
-        const me = await getCurrentUser();
+        const me = await getCurrentUser(undefined, { skipAuthRedirect: true });
         if (!me.error && me.data) {
           user = me.data;
         }
@@ -81,7 +81,7 @@ export function SignUpForm() {
     }
 
     // Try fetching current user in case backend uses cookies instead of tokens
-    const me = await getCurrentUser();
+    const me = await getCurrentUser(undefined, { skipAuthRedirect: true });
     if (!me.error && me.data) {
       saveAuthUser(me.data, true);
       router.push("/dashboard");
