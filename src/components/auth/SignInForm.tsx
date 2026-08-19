@@ -42,7 +42,7 @@ export function SignInForm() {
       saveAuthToken(result.data.token, remember);
       let user = result.data.data ?? getAuthUser();
       if (!user) {
-        const me = await getCurrentUser();
+        const me = await getCurrentUser(undefined, { skipAuthRedirect: true });
         if (!me.error && me.data) {
           user = me.data;
         }
@@ -57,7 +57,7 @@ export function SignInForm() {
     // If backend uses cookie-based auth and doesn't return a token,
     // try fetching the current user (with credentials included).
     if (!result.error) {
-      const me = await getCurrentUser();
+      const me = await getCurrentUser(undefined, { skipAuthRedirect: true });
       if (!me.error && me.data) {
         saveAuthUser(me.data, remember);
         router.push("/dashboard");

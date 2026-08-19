@@ -250,7 +250,7 @@ export type AttendanceData = {
   }>;
 };
 
-async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<ApiResult<T>> {
+async function apiRequest<T>(path: string, init: RequestInit = {}, options: { skipAuthRedirect?: boolean } = {}): Promise<ApiResult<T>> {
   const headers = (init.body instanceof FormData)
     ? (init.headers ?? {})
     : ({ "Content-Type": "application/json", ...(init.headers ?? {}) });
@@ -316,7 +316,7 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<ApiR
           console.error(`API error ${response.status}: ${message}`, { status: response.status, body: json });
         }
 
-        if (response.status === 401) {
+        if (response.status === 401 && !options.skipAuthRedirect) {
           if (process.env.NODE_ENV !== 'production') {
             console.log(`[auth] apiRequest 401 on ${path} — attempting token refresh`, { method: init.method, path });
           }
@@ -363,6 +363,8 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<ApiR
           if (typeof window !== "undefined") {
             window.location.href = "/signin";
           }
+          return { data: null, error: message, statusCode: 401 };
+        } else if (response.status === 401 && options.skipAuthRedirect) {
           return { data: null, error: message, statusCode: 401 };
         } else if (response.status === 403) {
           const bodyMessage = typeof json === "object" && json !== null ? String((json as Record<string, unknown>).message ?? "") : "";
@@ -647,7 +649,7 @@ export async function login(email: string, password: string) {
   const result = await apiRequest<{ success: boolean; token?: string; message?: string; data?: User }>("/api/auth/login", {
     method: "POST",
     body: JSON.stringify({ email, password }),
-  });
+  }, { skipAuthRedirect: true });
   if (process.env.NODE_ENV !== 'production') {
     console.log('[auth] login response', { hasError: !!result.error, hasToken: !!result.data?.token, hasUser: !!result.data?.data });
   }
@@ -665,14 +667,14 @@ export async function signup(data: {
   return apiRequest<{ success: boolean; token?: string; message?: string; errors?: unknown; data?: User }>("/api/auth/signup", {
     method: "POST",
     body: JSON.stringify(data),
-  });
+  }, { skipAuthRedirect: true });
 }
 
 export async function resendVerification(email: string) {
   return apiRequest<{ success: boolean; message?: string }>("/api/auth/resend-verification", {
     method: "POST",
     body: JSON.stringify({ email }),
-  });
+  }, { skipAuthRedirect: true });
 }
 
 export async function getVendors(token?: string) {
@@ -883,7 +885,7 @@ export async function uploadProfileImage(file: File, token?: string): Promise<Ap
   });
 }
 
-export async function getCurrentUser(token?: string) {
+export async function getCurrentUser(token?: string, options: { skipAuthRedirect?: boolean } = {}) {
   const headers: Record<string, string> = {};
   const t = token ?? getAuthToken();
   if (t) headers.Authorization = `Bearer ${t}`;
@@ -892,7 +894,7 @@ export async function getCurrentUser(token?: string) {
     method: "GET",
     headers,
     credentials: "include",
-  });
+  }, options);
 
   if (!result.error && result.data) {
     return result;
