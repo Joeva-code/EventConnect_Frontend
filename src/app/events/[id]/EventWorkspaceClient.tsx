@@ -113,8 +113,36 @@ export default function EventWorkspaceClient({ eventId }: { eventId: string }) {
   const [user, setUser] = useState<ReturnType<typeof getAuthUser>>(getAuthUser);
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function bootstrap() {
+      const storedUser = getAuthUser();
+      if (!storedUser) {
+        const me = await getCurrentUser();
+        if (me.data) {
+          saveAuthUser(me.data, true);
+          if (!cancelled) {
+            setUser(me.data);
+          }
+        } else if (!cancelled) {
+          router.replace("/signin");
+        }
+        return;
+      }
+
+      if (!cancelled) {
+        setUser(storedUser);
+      }
+    }
+
+    bootstrap();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  useEffect(() => {
     if (!user) {
-      router.replace("/signin");
       return;
     }
     if (user.role.toUpperCase() !== "PLANNER" && user.role.toUpperCase() !== "ADMIN") {

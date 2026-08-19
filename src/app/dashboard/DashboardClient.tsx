@@ -379,7 +379,46 @@ export default function DashboardClient() {
     async function bootstrap() {
       const storedUser = getAuthUser();
       if (!storedUser) {
-        router.replace("/signin");
+        const me = await getCurrentUser();
+        if (me.data) {
+          saveAuthUser(me.data, true);
+          if (isMounted) {
+            setUser(me.data);
+            setIsLoading(false);
+          }
+          void loadEnquiries();
+          const role = (me.data.role ?? "").toUpperCase();
+          if (role === "PLANNER" || role === "ADMIN") {
+            void loadEvents();
+            void loadVendors();
+            void loadPlannerBookings();
+          }
+          if (role === "VENDOR") {
+            void loadVendors();
+            void getMyVendorProfile(getAuthToken() ?? undefined).then((result) => {
+              if (!result.error && result.data) {
+                setVendorProfileForm({
+                  businessName: result.data.businessName ?? "",
+                  category: result.data.category ?? "",
+                  location: result.data.location ?? "",
+                  priceRange: result.data.priceRange ?? "",
+                  description: result.data.description ?? "",
+                });
+              }
+            });
+            void getMyAvailability(getAuthToken() ?? undefined).then((result) => {
+              if (!result.error) setUnavailableDates(result.data?.availability ?? []);
+            });
+            void loadPortfolio();
+          }
+          const enquiryRefresh = window.setInterval(() => {
+            void loadEnquiries();
+          }, 15_000);
+          return () => window.clearInterval(enquiryRefresh);
+        }
+        if (isMounted) {
+          router.replace("/signin");
+        }
         return;
       }
 
