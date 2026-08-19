@@ -407,7 +407,7 @@ export default function DashboardClient() {
               }
             });
             void getMyAvailability(getAuthToken() ?? undefined).then((result) => {
-              if (!result.error) setUnavailableDates(result.data?.availability ?? []);
+              if (!result.error) setUnavailableDates(result.data?.unavailableDates ?? []);
             });
             void loadPortfolio();
           }
