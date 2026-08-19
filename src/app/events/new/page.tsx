@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createEvent, getAuthUser, getCurrentUser, saveAuthUser, clearAuth, getAuthToken, type User } from "@/lib/api";
 
@@ -14,6 +14,32 @@ export default function NewEventPage() {
   const [location, setLocation] = useState("");
   const [guestCount, setGuestCount] = useState("");
   const [user, setUser] = useState<User | null>(() => getAuthUser());
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function checkAuth() {
+      const storedUser = getAuthUser();
+      if (!storedUser) {
+        const me = await getCurrentUser();
+        if (me.data) {
+          saveAuthUser(me.data, true);
+          if (!cancelled) {
+            setUser(me.data);
+          }
+          return;
+        }
+      }
+      if (!cancelled) {
+        setUser(storedUser ?? null);
+      }
+    }
+
+    checkAuth();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (!user) {
     return (

@@ -341,7 +341,14 @@ export default function MyEventsClient() {
 
       const storedUser = getAuthUser();
       if (!storedUser && !getAuthToken()) {
-        if (!cancelled) {
+        const me = await getCurrentUser();
+        if (me.data) {
+          saveAuthUser(me.data, true);
+          if (!cancelled) {
+            setUser(me.data);
+            setIsLoading(false);
+          }
+        } else if (!cancelled) {
           setUser(null);
           setIsLoading(false);
           router.replace("/signin");

@@ -17,8 +17,34 @@ export default function EventsClient() {
   const isPlanner = (user?.role || "").toUpperCase() === "PLANNER" || (user?.role || "").toUpperCase() === "ADMIN";
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function bootstrap() {
+      const storedUser = getAuthUser();
+      if (!storedUser) {
+        const me = await getCurrentUser();
+        if (me.data) {
+          saveAuthUser(me.data, true);
+          if (!cancelled) {
+            setUser(me.data);
+          }
+        } else if (!cancelled) {
+          router.replace("/signin");
+          return;
+        }
+      } else if (!cancelled) {
+        setUser(storedUser);
+      }
+    }
+
+    bootstrap();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  useEffect(() => {
     if (!user) {
-      router.replace("/signin");
       return;
     }
     if (!isPlanner) {
